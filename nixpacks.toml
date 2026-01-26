@@ -7,9 +7,11 @@ nixPkgs = [
   "gcc",
   "gnumake",
   "pkg-config",
-  "systemd",
-  "libudev-zero"
+  "systemd"
 ]
+
+[variables]
+LIBUSB_CFLAGS = "-DNO_UDEV"
 
 [phases.install]
 cmds = ["cd apps/backend && npm install"]
