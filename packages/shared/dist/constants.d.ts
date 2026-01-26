@@ -1,0 +1,33 @@
+export declare const ORDER_STATUSES: readonly ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"];
+export declare const ORDER_TYPES: readonly ["dine-in", "takeaway", "delivery", "online"];
+export declare const PAYMENT_METHODS: readonly ["cash", "card", "online"];
+export declare const PAYMENT_STATUSES: readonly ["pending", "paid", "refunded", "failed"];
+export declare const USER_ROLES: readonly ["admin", "manager", "staff"];
+export declare const DEFAULT_SETTINGS: {
+    shopName: string;
+    address: string;
+    phone: string;
+    vatRate: number;
+    currency: string;
+    currencySymbol: string;
+    receiptFooter: string;
+};
+export declare const API_ENDPOINTS: {
+    LOGIN: string;
+    LOGOUT: string;
+    ME: string;
+    PRODUCTS: string;
+    PRODUCT: (id: string) => string;
+    CATEGORIES: string;
+    CATEGORY: (id: string) => string;
+    ORDERS: string;
+    ORDER: (id: string) => string;
+    ORDER_STATUS: (id: string) => string;
+    USERS: string;
+    USER: (id: string) => string;
+    SETTINGS: string;
+    PRINT_RECEIPT: string;
+    PRINTER_STATUS: string;
+    REPORTS_DAILY: string;
+    REPORTS_SALES: string;
+};

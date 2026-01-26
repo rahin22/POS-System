@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(staff)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id             String                 @id @default(cuid())
+  name           String
+  description    String?
+  price          Float
+  image          String?
+  isAvailable    Boolean                @default(true)
+  sortOrder      Int                    @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  categoryId     String
+  imageUrl       String?
+  orderItems     OrderItem[]
+  category       Category               @relation(fields: [categoryId], references: [id])
+  modifierGroups ProductModifierGroup[]
+}
+
+model ModifierGroup {
+  id            String                 @id @default(cuid())
+  name          String
+  description   String?
+  isRequired    Boolean                @default(false)
+  minSelections Int                    @default(0)
+  maxSelections Int                    @default(1)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  modifiers     Modifier[]
+  products      ProductModifierGroup[]
+}
+
+model Modifier {
+  id                 String              @id @default(cuid())
+  name               String
+  price              Float               @default(0)
+  isAvailable        Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  groupId            String
+  group              ModifierGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItemModifiers OrderItemModifier[]
+}
+
+model ProductModifierGroup {
+  productId       String
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, modifierGroupId])
+}
+
+model Order {
+  id            String         @id @default(cuid())
+  orderNumber   Int            @default(autoincrement())
+  status        OrderStatus    @default(received)
+  type          OrderType      @default(takeaway)
+  subtotal      Float
+  tax           Float
+  discount      Float          @default(0)
+  discountType  String?
+  discountValue Float?
+  couponCode    String?
+  total         Float
+  paymentMethod PaymentMethod?
+  paymentStatus PaymentStatus  @default(pending)
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  completedAt   DateTime?
+  createdById   String?
+  createdBy     User?          @relation(fields: [createdById], references: [id])
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id         String              @id @default(cuid())
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+  notes      String?
+  orderId    String
+  productId  String
+  order      Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product             @relation(fields: [productId], references: [id])
+  modifiers  OrderItemModifier[]
+}
+
+model OrderItemModifier {
+  id          String    @id @default(cuid())
+  name        String
+  price       Float
+  orderItemId String
+  modifierId  String
+  modifier    Modifier  @relation(fields: [modifierId], references: [id])
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+}
+
+model Settings {
+  id             String   @id @default("default")
+  shopName       String   @default("Kebab Shop")
+  address        String   @default("")
+  phone          String   @default("")
+  email          String?
+  vatNumber      String?
+  vatRate        Float    @default(20)
+  currency       String   @default("GBP")
+  currencySymbol String   @default("£")
+  receiptFooter  String?  @default("Thank you for your order!")
+  logoUrl        String?
+  updatedAt      DateTime @updatedAt
+}
+
+model Coupon {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  type           CouponType
+  value          Float
+  minOrderAmount Float?
+  maxDiscount    Float?
+  usageLimit     Int?
+  usageCount     Int        @default(0)
+  isActive       Boolean    @default(true)
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+enum UserRole {
+  admin
+  manager
+  staff
+}
+
+enum OrderStatus {
+  received
+  preparing
+  ready
+  completed
+  cancelled
+}
+
+enum OrderType {
+  dine_in
+  takeaway
+  delivery
+  online
+}
+
+enum PaymentMethod {
+  cash
+  card
+  online
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  refunded
+  failed
+}
+
+enum CouponType {
+  percentage
+  fixed
+}

@@ -1,0 +1,35 @@
+{
+  "name": "kebab-pos-system",
+  "version": "1.0.0",
+  "description": "Complete POS system for kebab shop with Electron terminal, admin portal, and customer ordering",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w @kebab-pos/backend",
+    "dev:admin": "npm run dev -w @kebab-pos/admin",
+    "dev:customer": "npm run dev -w @kebab-pos/customer",
+    "dev:pos": "npm run dev -w @kebab-pos/terminal",
+    "build:backend": "npm run build -w @kebab-pos/backend",
+    "build:admin": "npm run build -w @kebab-pos/admin",
+    "build:customer": "npm run build -w @kebab-pos/customer",
+    "build:pos": "npm run build -w @kebab-pos/terminal",
+    "db:generate": "npm run db:generate -w @kebab-pos/backend",
+    "db:push": "npm run db:push -w @kebab-pos/backend",
+    "db:studio": "npm run db:studio -w @kebab-pos/backend"
+  },
+  "keywords": [
+    "pos",
+    "point-of-sale",
+    "electron",
+    "restaurant",
+    "kebab"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
