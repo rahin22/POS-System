@@ -7,7 +7,8 @@ nixPkgs = [
   "gcc",
   "gnumake",
   "pkg-config",
-  "systemd"
+  "systemd",
+  "libudev-zero"
 ]
 
 [phases.install]
