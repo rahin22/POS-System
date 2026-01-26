@@ -136,14 +136,41 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
 
   const reprintReceipt = async (orderId: string) => {
     try {
-      const response = await fetchApi<{ success: boolean }>(`/api/orders/${orderId}/reprint`, {
-        method: 'POST',
-        body: JSON.stringify({ type: 'customer' }),
+      // Check if Electron API is available
+      if (!window.electronAPI?.printReceipt) {
+        setError('Printer not available - please use the desktop app');
+        return;
+      }
+
+      // Find the order in our local state
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        setError('Order not found');
+        return;
+      }
+
+      // Print locally via Electron IPC
+      const result = await window.electronAPI.printReceipt({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        orderType: order.type,
+        items: order.items.map(item => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.unitPrice,
+          modifiers: item.modifiers
+        })),
+        subtotal: order.subtotal,
+        tax: order.tax,
+        total: order.total,
+        paymentMethod: 'card', // Default for reprints
       });
       
-      if (response.success) {
-        // Show success message (you could add a toast notification here)
+      if (result.success) {
         console.log('Receipt reprinted successfully');
+      } else {
+        setError(result.error || 'Print failed');
       }
     } catch (err: any) {
       setError(err.message);
@@ -152,13 +179,41 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
 
   const printKitchenDocket = async (orderId: string) => {
     try {
-      const response = await fetchApi<{ success: boolean }>(`/api/orders/${orderId}/reprint`, {
-        method: 'POST',
-        body: JSON.stringify({ type: 'kitchen' }),
+      // Check if Electron API is available
+      if (!window.electronAPI?.printReceipt) {
+        setError('Printer not available - please use the desktop app');
+        return;
+      }
+
+      // Find the order in our local state
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        setError('Order not found');
+        return;
+      }
+
+      // Print kitchen docket locally via Electron IPC
+      const result = await window.electronAPI.printReceipt({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        orderType: order.type,
+        items: order.items.map(item => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.unitPrice,
+          modifiers: item.modifiers
+        })),
+        subtotal: order.subtotal,
+        tax: order.tax,
+        total: order.total,
+        paymentMethod: 'kitchen', // Mark as kitchen docket
       });
       
-      if (response.success) {
+      if (result.success) {
         console.log('Kitchen docket printed successfully');
+      } else {
+        setError(result.error || 'Print failed');
       }
     } catch (err: any) {
       setError(err.message);

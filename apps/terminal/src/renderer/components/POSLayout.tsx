@@ -97,15 +97,44 @@ export function POSLayout() {
           }),
         });
 
-        // Print receipt if requested
-        if (printReceipt) {
-          await fetchApi('/api/print/receipt', {
-            method: 'POST',
-            body: JSON.stringify({
+        // Print receipt if requested (locally via Electron IPC)
+        if (printReceipt && response.data) {
+          console.log('Print requested, printReceipt:', printReceipt);
+          if (window.electronAPI?.printReceipt) {
+            console.log('Calling Electron print API with data:', response.data);
+            
+            // Print customer receipt
+            const printResult = await window.electronAPI.printReceipt({
               orderId: response.data.id,
-              printType: 'both',
-            }),
-          });
+              orderNumber: response.data.orderNumber,
+              customerName: response.data.customerName,
+              orderType: response.data.orderType,
+              items: response.data.items,
+              subtotal: response.data.subtotal,
+              tax: response.data.tax,
+              total: response.data.total,
+              paymentMethod: primaryPayment.method,
+            });
+            console.log('Customer receipt print result:', printResult);
+            
+            // Also print kitchen docket automatically
+            const kitchenResult = await window.electronAPI.printReceipt({
+              orderId: response.data.id,
+              orderNumber: response.data.orderNumber,
+              customerName: response.data.customerName,
+              orderType: response.data.orderType,
+              items: response.data.items,
+              subtotal: response.data.subtotal,
+              tax: response.data.tax,
+              total: response.data.total,
+              paymentMethod: 'kitchen', // Mark as kitchen docket
+            });
+            console.log('Kitchen docket print result:', kitchenResult);
+          } else {
+            console.warn('Electron print API not available - running in browser mode');
+          }
+        } else {
+          console.log('Print NOT requested - printReceipt:', printReceipt, 'response.data:', !!response.data);
         }
 
         setShowCheckout(false);

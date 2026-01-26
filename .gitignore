@@ -1,6 +1,14 @@
 node_modules
+dist
+
 apps/admin/.env
+apps/admin/dist
 
 apps/backend/.env
+
 apps/terminal/.env
+apps/terminal/dist
+apps/terminal/release
+
 apps/customer/.env
+apps/customer/dist

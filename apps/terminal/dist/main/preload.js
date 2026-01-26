@@ -11,4 +11,6 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     getAppInfo: () => electron_1.ipcRenderer.invoke('get-app-info'),
     // Printing
     printReceipt: (orderData) => electron_1.ipcRenderer.invoke('print-receipt', orderData),
+    getPrinters: () => electron_1.ipcRenderer.invoke('get-printers'),
+    getPrintQueue: () => electron_1.ipcRenderer.invoke('get-print-queue'),
 });

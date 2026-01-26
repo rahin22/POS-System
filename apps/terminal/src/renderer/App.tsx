@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { POSLayout } from './components/POSLayout';
 import { OrdersPage } from './components/OrdersPage';
 import { MenuPage } from './components/MenuPage';
+import { SettingsPage } from './components/SettingsPage';
 import { LoginScreen } from './components/LoginScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ApiProvider, useApi } from './context/ApiContext';
 import logo from './assets/logo.png';
 
-type Page = 'pos' | 'orders' | 'menu';
+type Page = 'pos' | 'orders' | 'menu' | 'settings';
 
 function App() {
   return (
@@ -100,6 +101,16 @@ function AppContent() {
           >
             Menu
           </button>
+          <button
+            onClick={() => setCurrentPage('settings')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              currentPage === 'settings'
+                ? 'bg-white text-primary-700'
+                : 'hover:bg-primary-600'
+            }`}
+          >
+            Printers
+          </button>
         </div>
 
         <div className="flex items-center gap-4">
@@ -118,6 +129,7 @@ function AppContent() {
         {currentPage === 'pos' && <POSLayout />}
         {currentPage === 'orders' && <OrdersPage currencySymbol={currencySymbol} />}
         {currentPage === 'menu' && <MenuPage currencySymbol={currencySymbol} />}
+        {currentPage === 'settings' && <SettingsPage />}
       </div>
     </div>
   );

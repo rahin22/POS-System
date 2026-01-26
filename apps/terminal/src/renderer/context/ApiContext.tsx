@@ -10,7 +10,7 @@ interface ApiContextType {
 const ApiContext = createContext<ApiContextType | null>(null);
 
 export function ApiProvider({ children }: { children: ReactNode }) {
-  const [apiUrl, setApiUrl] = useState('http://localhost:3001');
+  const [apiUrl, setApiUrl] = useState('https://kebab-posbackend-production.up.railway.app');
   const auth = useAuth();
 
   // Load settings from Electron store on mount

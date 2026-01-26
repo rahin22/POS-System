@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Printing
   printReceipt: (orderData: any) => ipcRenderer.invoke('print-receipt', orderData),
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
+  getPrintQueue: () => ipcRenderer.invoke('get-print-queue'),
 });
 
 // Type definitions for the exposed API
@@ -22,6 +24,7 @@ declare global {
         apiUrl: string;
         kioskMode: boolean;
         printerEnabled: boolean;
+        printerName: string;
       }>;
       setSettings: (settings: Record<string, any>) => Promise<boolean>;
       toggleFullscreen: () => Promise<boolean>;
@@ -31,6 +34,8 @@ declare global {
         arch: string;
       }>;
       printReceipt: (orderData: any) => Promise<{ success: boolean; error?: string }>;
+      getPrinters: () => Promise<{ success: boolean; printers: string[]; error?: string }>;
+      getPrintQueue: () => Promise<{ success: boolean; jobs: Array<{ job: string; user: string; size: string; date: string }>; error?: string }>;
     };
   }
 }
