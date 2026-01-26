@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_22", "npm-9_x", "openssl", "python311", "gcc", "gnumake", "systemd", "pkg-config", "libudev"]
+nixPkgs = ["nodejs_20", "npm-9_x", "openssl", "python311", "gcc", "gnumake", "systemd", "pkg-config"]
 
 [phases.install]
 cmds = ["cd apps/backend && npm install"]
