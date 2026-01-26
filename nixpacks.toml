@@ -1,18 +1,5 @@
 [phases.setup]
-nixPkgs = [
-  "nodejs_20",
-  "npm-9_x",
-  "openssl",
-  "python311",
-  "gcc",
-  "gnumake",
-  "pkg-config",
-  "systemd",
-  "udev"
-]
-
-[env]
-LIBUSB_CFLAGS = "-DNO_UDEV"
+nixPkgs = ["nodejs_20", "npm-9_x", "openssl"]
 
 [phases.install]
 cmds = ["cd apps/backend && npm install"]
