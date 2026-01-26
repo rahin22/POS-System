@@ -271,7 +271,7 @@ function ProductModal({
   onSave: (data: Partial<Product>, modifierGroupIds: string[]) => void;
   onClose: () => void;
 }) {
-  const { fetchApi } = useAuth();
+  useAuth();
   const [name, setName] = useState(product?.name || '');
   const [price, setPrice] = useState(product?.price?.toString() || '');
   const [categoryId, setCategoryId] = useState(product?.categoryId || categories[0]?.id || '');
