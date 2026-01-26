@@ -1,0 +1,24 @@
+# Ignore terminal and customer apps - they're not needed for backend deployment
+apps/terminal/
+apps/customer/
+
+# Ignore all node_modules - will be reinstalled
+node_modules/
+apps/*/node_modules/
+
+# Ignore build artifacts
+dist/
+build/
+out/
+
+# Ignore env files (use Railway environment variables instead)
+.env
+.env.local
+
+# Ignore logs
+*.log
+npm-debug.log*
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
