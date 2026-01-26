@@ -10,7 +10,7 @@ nixPkgs = [
   "systemd"
 ]
 
-[variables]
+[env]
 LIBUSB_CFLAGS = "-DNO_UDEV"
 
 [phases.install]
