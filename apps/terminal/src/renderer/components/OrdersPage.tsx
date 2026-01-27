@@ -132,13 +132,18 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
     }
   };
 
+  // Load orders on mount and when filter changes
   useEffect(() => {
     loadOrders();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadOrders, 30000);
+  }, [filterStatus]); // Only depend on filterStatus, not loadOrders
+
+  // Set up auto-refresh separately
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadOrders();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [loadOrders]);
+  }, []); // Empty deps - set up once on mount
 
   const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     try {

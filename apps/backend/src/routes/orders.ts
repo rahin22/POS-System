@@ -109,8 +109,12 @@ router.get('/:id', authenticate, async (req, res) => {
       include: {
         items: {
           include: {
-            product: true,
-            modifiers: true,
+            product: {
+              select: { id: true, name: true, price: true },
+            },
+            modifiers: {
+              select: { id: true, name: true, price: true },
+            },
           },
         },
         createdBy: {
