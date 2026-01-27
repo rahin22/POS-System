@@ -104,6 +104,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 // Get single order
 router.get('/:id', authenticate, async (req, res) => {
   try {
+    const startTime = Date.now();
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
       include: {
@@ -122,6 +123,8 @@ router.get('/:id', authenticate, async (req, res) => {
         },
       },
     });
+    const queryTime = Date.now() - startTime;
+    console.log(`[PERF] Single order query took ${queryTime}ms`);
 
     if (!order) {
       return res.status(404).json({
