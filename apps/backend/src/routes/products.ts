@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { createProductSchema, updateProductSchema } from '@kebab-pos/shared';
 import { authenticate, requireRole } from '../middleware/auth';
+import { cachedQuery, CACHE_KEYS, invalidateProductCache } from '../services/cache';
 
 const router = Router();
 
@@ -10,39 +11,48 @@ router.get('/', async (req, res) => {
   try {
     const { categoryId, available } = req.query;
 
-    const products = await prisma.product.findMany({
-      where: {
-        ...(categoryId && { categoryId: categoryId as string }),
-        ...(available === 'true' && { isAvailable: true }),
-      },
-      include: {
-        category: true,
-        modifierGroups: {
-          include: {
-            modifierGroup: {
-              include: {
-                modifiers: {
-                  where: { isAvailable: true },
+    // Use cache for listing all available products (most common POS query)
+    const cacheKey = categoryId 
+      ? `${CACHE_KEYS.PRODUCTS}_${categoryId}_${available}` 
+      : available === 'true' 
+        ? CACHE_KEYS.PRODUCTS_WITH_MODIFIERS 
+        : CACHE_KEYS.PRODUCTS;
+
+    const transformedProducts = await cachedQuery(cacheKey, async () => {
+      const products = await prisma.product.findMany({
+        where: {
+          ...(categoryId && { categoryId: categoryId as string }),
+          ...(available === 'true' && { isAvailable: true }),
+        },
+        include: {
+          category: true,
+          modifierGroups: {
+            include: {
+              modifierGroup: {
+                include: {
+                  modifiers: {
+                    where: { isAvailable: true },
+                  },
                 },
               },
             },
           },
         },
-      },
-      orderBy: [
-        { category: { sortOrder: 'asc' } },
-        { sortOrder: 'asc' },
-        { name: 'asc' },
-      ],
-    });
+        orderBy: [
+          { category: { sortOrder: 'asc' } },
+          { sortOrder: 'asc' },
+          { name: 'asc' },
+        ],
+      });
 
-    // Transform modifier groups
-    type ProductWithGroups = typeof products[number];
-    type ModifierGroupJoin = ProductWithGroups['modifierGroups'][number];
-    const transformedProducts = products.map((product: ProductWithGroups) => ({
-      ...product,
-      modifierGroups: product.modifierGroups.map((pmg: ModifierGroupJoin) => pmg.modifierGroup),
-    }));
+      // Transform modifier groups
+      type ProductWithGroups = typeof products[number];
+      type ModifierGroupJoin = ProductWithGroups['modifierGroups'][number];
+      return products.map((product: ProductWithGroups) => ({
+        ...product,
+        modifierGroups: product.modifierGroups.map((pmg: ModifierGroupJoin) => pmg.modifierGroup),
+      }));
+    });
 
     res.json({
       success: true,
@@ -120,6 +130,9 @@ router.post('/', authenticate, requireRole('admin', 'manager'), async (req, res)
       },
     });
 
+    // Invalidate product cache
+    invalidateProductCache();
+
     res.status(201).json({
       success: true,
       data: product,
@@ -152,6 +165,9 @@ router.put('/:id', authenticate, requireRole('admin', 'manager'), async (req, re
       },
     });
 
+    // Invalidate product cache
+    invalidateProductCache();
+
     res.json({
       success: true,
       data: product,
@@ -171,6 +187,9 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
     await prisma.product.delete({
       where: { id: req.params.id },
     });
+
+    // Invalidate product cache
+    invalidateProductCache();
 
     res.json({
       success: true,
@@ -203,6 +222,9 @@ router.patch('/:id/availability', authenticate, requireRole('admin', 'manager', 
       where: { id: req.params.id },
       data: { isAvailable: !product.isAvailable },
     });
+
+    // Invalidate product cache
+    invalidateProductCache();
 
     res.json({
       success: true,
@@ -260,6 +282,9 @@ router.put('/:id/modifier-groups', authenticate, requireRole('admin', 'manager')
         },
       },
     });
+
+    // Invalidate product cache
+    invalidateProductCache();
 
     res.json({
       success: true,

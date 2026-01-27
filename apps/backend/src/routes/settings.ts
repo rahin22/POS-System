@@ -2,22 +2,31 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { settingsSchema } from '@kebab-pos/shared';
 import { authenticate, requireRole } from '../middleware/auth';
+import { cachedQuery, cache, CACHE_KEYS } from '../services/cache';
 
 const router = Router();
 
 // Get settings
 router.get('/', async (req, res) => {
   try {
-    let settings = await prisma.settings.findUnique({
-      where: { id: 'default' },
-    });
+    const settings = await cachedQuery(
+      CACHE_KEYS.SETTINGS,
+      async () => {
+        let settings = await prisma.settings.findUnique({
+          where: { id: 'default' },
+        });
 
-    // Create default settings if not exists
-    if (!settings) {
-      settings = await prisma.settings.create({
-        data: { id: 'default' },
-      });
-    }
+        // Create default settings if not exists
+        if (!settings) {
+          settings = await prisma.settings.create({
+            data: { id: 'default' },
+          });
+        }
+
+        return settings;
+      },
+      600 // Cache settings for 10 minutes
+    );
 
     res.json({
       success: true,
@@ -51,6 +60,10 @@ router.put('/', authenticate, requireRole('admin'), async (req, res) => {
       },
       update: validation.data,
     });
+
+    // Invalidate settings cache
+    cache.del(CACHE_KEYS.SETTINGS);
+    console.log('[CACHE] Settings cache invalidated');
 
     res.json({
       success: true,

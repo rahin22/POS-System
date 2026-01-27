@@ -2,25 +2,40 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { createCategorySchema, updateCategorySchema } from '@kebab-pos/shared';
 import { authenticate, requireRole } from '../middleware/auth';
+import { cachedQuery, cache, CACHE_KEYS } from '../services/cache';
 
 const router = Router();
+
+// Helper to invalidate category cache
+const invalidateCategoryCache = () => {
+  const keys = cache.keys();
+  keys.forEach((key) => {
+    if (key.startsWith('categories')) {
+      cache.del(key);
+    }
+  });
+  console.log('[CACHE] Category cache invalidated');
+};
 
 // Get all categories
 router.get('/', async (req, res) => {
   try {
     const { active } = req.query;
+    const cacheKey = active === 'true' ? `${CACHE_KEYS.CATEGORIES}_active` : CACHE_KEYS.CATEGORIES;
 
-    const categories = await prisma.category.findMany({
-      where: {
-        ...(active === 'true' && { isActive: true }),
-      },
-      include: {
-        _count: {
-          select: { products: true },
+    const categories = await cachedQuery(cacheKey, () =>
+      prisma.category.findMany({
+        where: {
+          ...(active === 'true' && { isActive: true }),
         },
-      },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    });
+        include: {
+          _count: {
+            select: { products: true },
+          },
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      })
+    );
 
     res.json({
       success: true,
@@ -83,6 +98,9 @@ router.post('/', authenticate, requireRole('admin', 'manager'), async (req, res)
       data: validation.data,
     });
 
+    // Invalidate category cache
+    invalidateCategoryCache();
+
     res.status(201).json({
       success: true,
       data: category,
@@ -111,6 +129,9 @@ router.put('/:id', authenticate, requireRole('admin', 'manager'), async (req, re
       where: { id: req.params.id },
       data: validation.data,
     });
+
+    // Invalidate category cache
+    invalidateCategoryCache();
 
     res.json({
       success: true,
@@ -143,6 +164,9 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
     await prisma.category.delete({
       where: { id: req.params.id },
     });
+
+    // Invalidate category cache
+    invalidateCategoryCache();
 
     res.json({
       success: true,

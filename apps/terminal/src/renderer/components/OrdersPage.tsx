@@ -66,6 +66,7 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
   const { fetchApi } = useApi();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTabLoading, setIsTabLoading] = useState(false);
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState<Order['status'] | 'active' | 'all'>('active');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -90,6 +91,7 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
   };
 
   const loadOrders = useCallback(async () => {
+    setIsTabLoading(true);
     try {
       let url = '/api/orders?';
       if (filterStatus === 'active') {
@@ -120,6 +122,7 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
       setError(err.message);
     } finally {
       setIsLoading(false);
+      setIsTabLoading(false);
     }
   }, [fetchApi, filterStatus]);
 
@@ -205,7 +208,10 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
       });
       
       if (response.success) {
-        loadOrders();
+        // Update status in place - preserve loaded items
+        setOrders(prevOrders => 
+          prevOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o)
+        );
         if (selectedOrder?.id === orderId) {
           setSelectedOrder(prev => prev ? { ...prev, status: newStatus } : null);
         }
@@ -401,8 +407,16 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
       )}
 
       {/* Orders Grid */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {orders.length === 0 ? (
+      <div className="flex-1 overflow-y-auto p-6 relative">
+        {isTabLoading && (
+          <div className="absolute inset-0 bg-white/70 z-10 flex items-center justify-center">
+            <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-lg shadow-lg">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
+              <span className="text-gray-600 font-medium">Loading orders...</span>
+            </div>
+          </div>
+        )}
+        {orders.length === 0 && !isTabLoading ? (
           <div className="text-center py-16">
             <div className="text-gray-400 mb-4">
               <svg className="w-24 h-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">

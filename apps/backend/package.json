@@ -23,6 +23,7 @@
     "escpos-network": "^3.0.0-alpha.4",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
+    "node-cache": "^5.1.2",
     "zod": "^3.22.4"
   },
   "devDependencies": {

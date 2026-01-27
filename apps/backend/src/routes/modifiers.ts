@@ -2,8 +2,20 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { authenticate, requireRole } from '../middleware/auth';
 import { z } from 'zod';
+import { cache } from '../services/cache';
 
 const router = Router();
+
+// Helper to invalidate modifier cache (same as in modifier-groups)
+const invalidateModifierCache = () => {
+  const keys = cache.keys();
+  keys.forEach((key) => {
+    if (key.startsWith('modifiers') || key.startsWith('products')) {
+      cache.del(key);
+    }
+  });
+  console.log('[CACHE] Modifier and product cache invalidated');
+};
 
 // Validation schemas
 const createModifierSchema = z.object({
@@ -93,6 +105,9 @@ router.post('/', authenticate, requireRole('admin', 'manager'), async (req, res)
       },
     });
 
+    // Invalidate modifier cache
+    invalidateModifierCache();
+
     res.status(201).json({
       success: true,
       data: modifier,
@@ -125,6 +140,9 @@ router.put('/:id', authenticate, requireRole('admin', 'manager'), async (req, re
       },
     });
 
+    // Invalidate modifier cache
+    invalidateModifierCache();
+
     res.json({
       success: true,
       data: modifier,
@@ -156,6 +174,9 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
     await prisma.modifier.delete({
       where: { id: req.params.id },
     });
+
+    // Invalidate modifier cache
+    invalidateModifierCache();
 
     res.json({
       success: true,

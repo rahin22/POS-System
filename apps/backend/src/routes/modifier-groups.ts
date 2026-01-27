@@ -2,8 +2,20 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { authenticate, requireRole } from '../middleware/auth';
 import { z } from 'zod';
+import { cachedQuery, cache, CACHE_KEYS } from '../services/cache';
 
 const router = Router();
+
+// Helper to invalidate modifier cache
+const invalidateModifierCache = () => {
+  const keys = cache.keys();
+  keys.forEach((key) => {
+    if (key.startsWith('modifiers') || key.startsWith('products')) {
+      cache.del(key);
+    }
+  });
+  console.log('[CACHE] Modifier and product cache invalidated');
+};
 
 // Validation schemas
 const createModifierGroupSchema = z.object({
@@ -25,18 +37,20 @@ const updateModifierGroupSchema = z.object({
 // Get all modifier groups
 router.get('/', async (req, res) => {
   try {
-    const groups = await prisma.modifierGroup.findMany({
-      include: {
-        modifiers: {
-          orderBy: {
-            name: 'asc',
+    const groups = await cachedQuery(CACHE_KEYS.MODIFIERS, () =>
+      prisma.modifierGroup.findMany({
+        include: {
+          modifiers: {
+            orderBy: {
+              name: 'asc',
+            },
           },
         },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+        orderBy: {
+          name: 'asc',
+        },
+      })
+    );
 
     res.json({
       success: true,
@@ -103,6 +117,9 @@ router.post('/', authenticate, requireRole('admin', 'manager'), async (req, res)
       },
     });
 
+    // Invalidate modifier cache
+    invalidateModifierCache();
+
     res.status(201).json({
       success: true,
       data: group,
@@ -134,6 +151,9 @@ router.put('/:id', authenticate, requireRole('admin', 'manager'), async (req, re
         modifiers: true,
       },
     });
+
+    // Invalidate modifier cache
+    invalidateModifierCache();
 
     res.json({
       success: true,
@@ -167,6 +187,9 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
     await prisma.modifierGroup.delete({
       where: { id: req.params.id },
     });
+
+    // Invalidate modifier cache
+    invalidateModifierCache();
 
     res.json({
       success: true,
