@@ -100,7 +100,21 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
       
       const response = await fetchApi<{ success: boolean; data: { items: Order[] } }>(url);
       if (response.success) {
-        setOrders(response.data.items);
+        const ordersData = response.data.items;
+        setOrders(ordersData);
+        
+        // Auto-load items for recent orders (last 2 hours) that are active
+        const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+        const recentActiveOrders = ordersData.filter(order => 
+          new Date(order.createdAt).getTime() > twoHoursAgo &&
+          ['received', 'preparing', 'ready'].includes(order.status) &&
+          (!order.items || order.items.length === 0)
+        );
+        
+        // Load items for recent orders in batches
+        if (recentActiveOrders.length > 0) {
+          loadOrderItemsBatch(recentActiveOrders.slice(0, 10)); // Load first 10
+        }
       }
     } catch (err: any) {
       setError(err.message);
@@ -109,12 +123,43 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
     }
   }, [fetchApi, filterStatus]);
 
+  // Batch load order items for multiple orders
+  const loadOrderItemsBatch = useCallback(async (ordersToLoad: Order[]) => {
+    try {
+      const results = await Promise.all(
+        ordersToLoad.map(order => 
+          fetchApi<{ success: boolean; data: Order }>(`/api/orders/${order.id}`)
+        )
+      );
+      
+      // Update orders with loaded items
+      setOrders(prevOrders => {
+        const updatedOrders = [...prevOrders];
+        results.forEach(result => {
+          if (result.success) {
+            const index = updatedOrders.findIndex(o => o.id === result.data.id);
+            if (index !== -1) {
+              updatedOrders[index] = result.data;
+            }
+          }
+        });
+        return updatedOrders;
+      });
+    } catch (err) {
+      console.error('Failed to load order items batch:', err);
+    }
+  }, [fetchApi]);
+
   // Load full order details when selecting
   const loadOrderDetails = useCallback(async (orderId: string) => {
     try {
       const response = await fetchApi<{ success: boolean; data: Order }>(`/api/orders/${orderId}`);
       if (response.success) {
         setSelectedOrder(response.data);
+        // Also update the order in the list
+        setOrders(prevOrders => 
+          prevOrders.map(o => o.id === orderId ? response.data : o)
+        );
       }
     } catch (err: any) {
       setError(err.message);
@@ -131,6 +176,13 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
       loadOrderDetails(order.id); // Then load full details
     }
   };
+
+  // Load items for an order when it becomes visible (for older orders)
+  const loadOrderItemsIfNeeded = useCallback((order: Order) => {
+    if (!order.items || order.items.length === 0) {
+      loadOrderDetails(order.id);
+    }
+  }, [loadOrderDetails]);
 
   // Load orders on mount and when filter changes
   useEffect(() => {
@@ -426,8 +478,11 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
                         </div>
                       ))
                     ) : (
-                      <div className="text-sm text-gray-500">
-                        {order._count?.items || 0} item{(order._count?.items || 0) !== 1 ? 's' : ''} - Click "View Details" to see items
+                      <div 
+                        className="text-sm text-gray-400 italic cursor-pointer hover:text-gray-600"
+                        onClick={() => loadOrderItemsIfNeeded(order)}
+                      >
+                        Loading {order._count?.items || '...'} items...
                       </div>
                     )}
                   </div>
