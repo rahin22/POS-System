@@ -13,8 +13,22 @@ import couponRoutes from './routes/coupons';
 import modifierRoutes from './routes/modifiers';
 import modifierGroupRoutes from './routes/modifier-groups';
 
-// Initialize Prisma
-export const prisma = new PrismaClient();
+// Initialize Prisma with connection pool settings
+export const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['error'],
+});
+
+// Keep connection alive
+prisma.$connect().then(() => {
+  console.log('Database connected');
+}).catch((err) => {
+  console.error('Database connection error:', err);
+});
 
 // Initialize Express
 const app = express();

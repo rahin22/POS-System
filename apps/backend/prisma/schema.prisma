@@ -46,6 +46,9 @@ model Product {
   orderItems     OrderItem[]
   category       Category               @relation(fields: [categoryId], references: [id])
   modifierGroups ProductModifierGroup[]
+
+  @@index([categoryId])
+  @@index([isAvailable])
 }
 
 model ModifierGroup {
@@ -106,6 +109,10 @@ model Order {
   createdById   String?
   createdBy     User?          @relation(fields: [createdById], references: [id])
   items         OrderItem[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model OrderItem {

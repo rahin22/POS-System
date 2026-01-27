@@ -53,8 +53,12 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         include: {
           items: {
             include: {
-              product: true,
-              modifiers: true,
+              product: {
+                select: { id: true, name: true, price: true },
+              },
+              modifiers: {
+                select: { id: true, name: true, price: true },
+              },
             },
           },
           createdBy: {
