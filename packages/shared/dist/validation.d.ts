@@ -222,15 +222,15 @@ export declare const loginSchema: z.ZodObject<{
 }>;
 export declare const settingsSchema: z.ZodObject<{
     shopName: z.ZodString;
-    address: z.ZodDefault<z.ZodString>;
-    phone: z.ZodDefault<z.ZodString>;
-    email: z.ZodDefault<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>;
-    vatNumber: z.ZodDefault<z.ZodString>;
+    address: z.ZodEffects<z.ZodNullable<z.ZodString>, string, string | null>;
+    phone: z.ZodEffects<z.ZodNullable<z.ZodString>, string, string | null>;
+    email: z.ZodEffects<z.ZodNullable<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>, string, string | null>;
+    vatNumber: z.ZodEffects<z.ZodNullable<z.ZodString>, string, string | null>;
     vatRate: z.ZodNumber;
     currency: z.ZodString;
     currencySymbol: z.ZodString;
-    receiptFooter: z.ZodDefault<z.ZodString>;
-    logoUrl: z.ZodDefault<z.ZodUnion<[z.ZodUnion<[z.ZodNullable<z.ZodString>, z.ZodLiteral<"">]>, z.ZodLiteral<null>]>>;
+    receiptFooter: z.ZodEffects<z.ZodNullable<z.ZodString>, string, string | null>;
+    logoUrl: z.ZodEffects<z.ZodUnion<[z.ZodUnion<[z.ZodNullable<z.ZodString>, z.ZodLiteral<"">]>, z.ZodLiteral<null>]>, string | null, string | null>;
 }, "strip", z.ZodTypeAny, {
     email: string;
     shopName: string;
@@ -243,16 +243,16 @@ export declare const settingsSchema: z.ZodObject<{
     receiptFooter: string;
     logoUrl: string | null;
 }, {
+    email: string | null;
     shopName: string;
+    address: string | null;
+    phone: string | null;
+    vatNumber: string | null;
     vatRate: number;
     currency: string;
     currencySymbol: string;
-    email?: string | undefined;
-    address?: string | undefined;
-    phone?: string | undefined;
-    vatNumber?: string | undefined;
-    receiptFooter?: string | undefined;
-    logoUrl?: string | null | undefined;
+    receiptFooter: string | null;
+    logoUrl: string | null;
 }>;
 export declare const printReceiptSchema: z.ZodObject<{
     orderId: z.ZodString;
