@@ -222,26 +222,26 @@ export declare const loginSchema: z.ZodObject<{
 }>;
 export declare const settingsSchema: z.ZodObject<{
     shopName: z.ZodString;
-    address: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
-    phone: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
-    email: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
-    vatNumber: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
+    address: z.ZodDefault<z.ZodString>;
+    phone: z.ZodDefault<z.ZodString>;
+    email: z.ZodDefault<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>;
+    vatNumber: z.ZodDefault<z.ZodString>;
     vatRate: z.ZodNumber;
     currency: z.ZodString;
     currencySymbol: z.ZodString;
-    receiptFooter: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
-    logoUrl: z.ZodNullable<z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>>;
+    receiptFooter: z.ZodDefault<z.ZodString>;
+    logoUrl: z.ZodDefault<z.ZodUnion<[z.ZodUnion<[z.ZodNullable<z.ZodString>, z.ZodLiteral<"">]>, z.ZodLiteral<null>]>>;
 }, "strip", z.ZodTypeAny, {
+    email: string;
     shopName: string;
+    address: string;
+    phone: string;
+    vatNumber: string;
     vatRate: number;
     currency: string;
     currencySymbol: string;
-    email?: string | undefined;
-    address?: string | undefined;
-    phone?: string | undefined;
-    vatNumber?: string | undefined;
-    receiptFooter?: string | undefined;
-    logoUrl?: string | null | undefined;
+    receiptFooter: string;
+    logoUrl: string | null;
 }, {
     shopName: string;
     vatRate: number;
