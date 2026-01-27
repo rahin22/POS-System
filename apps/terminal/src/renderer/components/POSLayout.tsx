@@ -103,12 +103,15 @@ export function POSLayout() {
           if (window.electronAPI?.printReceipt) {
             console.log('Calling Electron print API with data:', response.data);
             
+            // Get order type - API returns 'type' with underscore format (dine_in), convert to display format
+            const orderType = (response.data.type || 'takeaway').replace('_', '-');
+            
             // Print customer receipt
             const printResult = await window.electronAPI.printReceipt({
               orderId: response.data.id,
               orderNumber: response.data.orderNumber,
               customerName: response.data.customerName,
-              orderType: response.data.orderType,
+              orderType: orderType,
               items: response.data.items,
               subtotal: response.data.subtotal,
               tax: response.data.tax,
@@ -122,7 +125,7 @@ export function POSLayout() {
               orderId: response.data.id,
               orderNumber: response.data.orderNumber,
               customerName: response.data.customerName,
-              orderType: response.data.orderType,
+              orderType: orderType,
               items: response.data.items,
               subtotal: response.data.subtotal,
               tax: response.data.tax,

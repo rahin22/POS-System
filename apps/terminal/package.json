@@ -29,6 +29,13 @@
     "files": [
       "dist/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      }
+    ],
     "linux": {
       "target": [
         "AppImage",
