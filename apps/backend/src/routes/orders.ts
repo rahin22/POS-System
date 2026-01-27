@@ -47,10 +47,13 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       ...dateFilter,
     };
 
+    // Check if full details requested (for single order view)
+    const includeItems = req.query.includeItems === 'true';
+
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
-        include: {
+        include: includeItems ? {
           items: {
             include: {
               product: {
@@ -63,6 +66,13 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
           },
           createdBy: {
             select: { id: true, name: true },
+          },
+        } : {
+          createdBy: {
+            select: { id: true, name: true },
+          },
+          _count: {
+            select: { items: true },
           },
         },
         orderBy: { createdAt: 'desc' },

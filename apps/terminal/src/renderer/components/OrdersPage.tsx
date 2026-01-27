@@ -31,7 +31,8 @@ interface Order {
   customerPhone?: string;
   notes?: string;
   createdAt: string;
-  items: OrderItem[];
+  items?: OrderItem[]; // Optional - not loaded in list view
+  _count?: { items: number }; // Item count for list view
 }
 
 interface OrdersPageProps {
@@ -108,6 +109,29 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
     }
   }, [fetchApi, filterStatus]);
 
+  // Load full order details when selecting
+  const loadOrderDetails = useCallback(async (orderId: string) => {
+    try {
+      const response = await fetchApi<{ success: boolean; data: Order }>(`/api/orders/${orderId}`);
+      if (response.success) {
+        setSelectedOrder(response.data);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [fetchApi]);
+
+  const handleSelectOrder = (order: Order) => {
+    // If order already has items loaded, use it directly
+    if (order.items && order.items.length > 0) {
+      setSelectedOrder(order);
+    } else {
+      // Otherwise fetch full details
+      setSelectedOrder(order); // Show immediately with basic info
+      loadOrderDetails(order.id); // Then load full details
+    }
+  };
+
   useEffect(() => {
     loadOrders();
     
@@ -149,21 +173,32 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
         return;
       }
 
+      // If items aren't loaded, fetch full order details first
+      let orderWithItems = order;
+      if (!order.items || order.items.length === 0) {
+        const response = await fetchApi<{ success: boolean; data: Order }>(`/api/orders/${orderId}`);
+        if (!response.success || !response.data) {
+          setError('Failed to load order details');
+          return;
+        }
+        orderWithItems = response.data;
+      }
+
       // Print locally via Electron IPC
       const result = await window.electronAPI.printReceipt({
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        customerName: order.customerName,
-        orderType: order.type,
-        items: order.items.map(item => ({
+        orderId: orderWithItems.id,
+        orderNumber: orderWithItems.orderNumber,
+        customerName: orderWithItems.customerName,
+        orderType: orderWithItems.type,
+        items: (orderWithItems.items || []).map(item => ({
           name: item.product.name,
           quantity: item.quantity,
           price: item.unitPrice,
           modifiers: item.modifiers
         })),
-        subtotal: order.subtotal,
-        tax: order.tax,
-        total: order.total,
+        subtotal: orderWithItems.subtotal,
+        tax: orderWithItems.tax,
+        total: orderWithItems.total,
         paymentMethod: 'card', // Default for reprints
       });
       
@@ -192,21 +227,32 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
         return;
       }
 
+      // If items aren't loaded, fetch full order details first
+      let orderWithItems = order;
+      if (!order.items || order.items.length === 0) {
+        const response = await fetchApi<{ success: boolean; data: Order }>(`/api/orders/${orderId}`);
+        if (!response.success || !response.data) {
+          setError('Failed to load order details');
+          return;
+        }
+        orderWithItems = response.data;
+      }
+
       // Print kitchen docket locally via Electron IPC
       const result = await window.electronAPI.printReceipt({
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        customerName: order.customerName,
-        orderType: order.type,
-        items: order.items.map(item => ({
+        orderId: orderWithItems.id,
+        orderNumber: orderWithItems.orderNumber,
+        customerName: orderWithItems.customerName,
+        orderType: orderWithItems.type,
+        items: (orderWithItems.items || []).map(item => ({
           name: item.product.name,
           quantity: item.quantity,
           price: item.unitPrice,
           modifiers: item.modifiers
         })),
-        subtotal: order.subtotal,
-        tax: order.tax,
-        total: order.total,
+        subtotal: orderWithItems.subtotal,
+        tax: orderWithItems.tax,
+        total: orderWithItems.total,
         paymentMethod: 'kitchen', // Mark as kitchen docket
       });
       
@@ -356,23 +402,29 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
 
                   {/* Items List */}
                   <div className="mb-4 space-y-2">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="flex items-start gap-3 text-sm">
-                        <span className="font-bold text-primary-600 min-w-[2rem]">{item.quantity}×</span>
-                        <div className="flex-1">
-                          <span className="font-medium text-gray-900">{item.product.name}</span>
-                          {item.modifiers.length > 0 && (
-                            <span className="text-gray-600 ml-2">
-                              ({item.modifiers.map(m => m.name).join(', ')})
-                            </span>
-                          )}
-                          {item.notes && (
-                            <p className="text-orange-600 text-xs mt-1">Note: {item.notes}</p>
-                          )}
+                    {order.items && order.items.length > 0 ? (
+                      order.items.map((item) => (
+                        <div key={item.id} className="flex items-start gap-3 text-sm">
+                          <span className="font-bold text-primary-600 min-w-[2rem]">{item.quantity}×</span>
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-900">{item.product.name}</span>
+                            {item.modifiers.length > 0 && (
+                              <span className="text-gray-600 ml-2">
+                                ({item.modifiers.map(m => m.name).join(', ')})
+                              </span>
+                            )}
+                            {item.notes && (
+                              <p className="text-orange-600 text-xs mt-1">Note: {item.notes}</p>
+                            )}
+                          </div>
+                          <span className="text-gray-700 font-medium">{formatPrice(item.totalPrice)}</span>
                         </div>
-                        <span className="text-gray-700 font-medium">{formatPrice(item.totalPrice)}</span>
+                      ))
+                    ) : (
+                      <div className="text-sm text-gray-500">
+                        {order._count?.items || 0} item{(order._count?.items || 0) !== 1 ? 's' : ''} - Click "View Details" to see items
                       </div>
-                    ))}
+                    )}
                   </div>
 
                   {order.notes && (
@@ -385,7 +437,7 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
                   {/* Actions */}
                   <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
                     <button
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => handleSelectOrder(order)}
                       className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
                     >
                       View Details
@@ -471,24 +523,28 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
             <div className="p-6">
               <h3 className="font-bold text-lg mb-4 text-gray-900">Order Items</h3>
               <div className="space-y-3">
-                {selectedOrder.items.map((item) => (
-                  <div key={item.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
-                    <span className="text-xl font-bold text-primary-600 min-w-[2.5rem]">{item.quantity}×</span>
-                    <div className="flex-1">
-                      <p className="font-semibold text-lg text-gray-900">{item.product.name}</p>
-                      {item.modifiers.length > 0 && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          {item.modifiers.map(m => `${m.name} (+${formatPrice(m.price)})`).join(', ')}
-                        </p>
-                      )}
-                      {item.notes && (
-                        <p className="text-sm text-orange-600 mt-1 font-medium">Note: {item.notes}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">{formatPrice(item.unitPrice)} each</p>
+                {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                  selectedOrder.items.map((item) => (
+                    <div key={item.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                      <span className="text-xl font-bold text-primary-600 min-w-[2.5rem]">{item.quantity}×</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-lg text-gray-900">{item.product.name}</p>
+                        {item.modifiers.length > 0 && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            {item.modifiers.map(m => `${m.name} (+${formatPrice(m.price)})`).join(', ')}
+                          </p>
+                        )}
+                        {item.notes && (
+                          <p className="text-sm text-orange-600 mt-1 font-medium">Note: {item.notes}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">{formatPrice(item.unitPrice)} each</p>
+                      </div>
+                      <span className="font-bold text-lg text-gray-900">{formatPrice(item.totalPrice)}</span>
                     </div>
-                    <span className="font-bold text-lg text-gray-900">{formatPrice(item.totalPrice)}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500">Loading items...</div>
+                )}
               </div>
 
               {selectedOrder.notes && (
