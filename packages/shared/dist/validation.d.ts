@@ -222,37 +222,37 @@ export declare const loginSchema: z.ZodObject<{
 }>;
 export declare const settingsSchema: z.ZodObject<{
     shopName: z.ZodString;
-    address: z.ZodString;
-    phone: z.ZodString;
-    email: z.ZodOptional<z.ZodString>;
-    vatNumber: z.ZodOptional<z.ZodString>;
+    address: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
+    phone: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
+    email: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
+    vatNumber: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
     vatRate: z.ZodNumber;
     currency: z.ZodString;
     currencySymbol: z.ZodString;
-    receiptFooter: z.ZodOptional<z.ZodString>;
-    logoUrl: z.ZodOptional<z.ZodString>;
+    receiptFooter: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
+    logoUrl: z.ZodNullable<z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>>;
 }, "strip", z.ZodTypeAny, {
     shopName: string;
-    address: string;
-    phone: string;
     vatRate: number;
     currency: string;
     currencySymbol: string;
     email?: string | undefined;
+    address?: string | undefined;
+    phone?: string | undefined;
     vatNumber?: string | undefined;
     receiptFooter?: string | undefined;
-    logoUrl?: string | undefined;
+    logoUrl?: string | null | undefined;
 }, {
     shopName: string;
-    address: string;
-    phone: string;
     vatRate: number;
     currency: string;
     currencySymbol: string;
     email?: string | undefined;
+    address?: string | undefined;
+    phone?: string | undefined;
     vatNumber?: string | undefined;
     receiptFooter?: string | undefined;
-    logoUrl?: string | undefined;
+    logoUrl?: string | null | undefined;
 }>;
 export declare const printReceiptSchema: z.ZodObject<{
     orderId: z.ZodString;

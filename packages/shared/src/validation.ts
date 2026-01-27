@@ -88,15 +88,15 @@ export const loginSchema = z.object({
 // ---------- Settings Schema ----------
 export const settingsSchema = z.object({
   shopName: z.string().min(1).max(100),
-  address: z.string().max(500),
-  phone: z.string().max(20),
-  email: z.string().email().optional(),
-  vatNumber: z.string().max(50).optional(),
+  address: z.string().max(500).optional().or(z.literal('')),
+  phone: z.string().max(20).optional().or(z.literal('')),
+  email: z.string().email().optional().or(z.literal('')),
+  vatNumber: z.string().max(50).optional().or(z.literal('')),
   vatRate: z.number().min(0).max(100),
   currency: z.string().length(3),
   currencySymbol: z.string().max(5),
-  receiptFooter: z.string().max(200).optional(),
-  logoUrl: z.string().url().optional(),
+  receiptFooter: z.string().max(200).optional().or(z.literal('')),
+  logoUrl: z.string().url().optional().or(z.literal('')).nullable(),
 });
 
 // ---------- Print Schema ----------

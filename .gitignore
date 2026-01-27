@@ -12,3 +12,6 @@ apps/terminal/release
 
 apps/customer/.env
 apps/customer/dist
+apps/backend/migrate-data.js
+apps/backend/migrate-storage.js
+apps/backend/update-image-urls.js
