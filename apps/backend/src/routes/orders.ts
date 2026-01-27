@@ -105,28 +105,47 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const startTime = Date.now();
-    const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
-      include: {
-        items: {
-          include: {
-            product: {
-              select: { id: true, name: true, price: true },
-            },
-            modifiers: {
-              select: { id: true, name: true, price: true },
-            },
-          },
-        },
-        createdBy: {
-          select: { id: true, name: true },
-        },
-      },
-    });
+    
+    // Use single query with JOINs instead of multiple round trips
+    const result = await prisma.$queryRaw<any[]>`
+      SELECT 
+        o.*,
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'quantity', oi.quantity,
+            'unitPrice', oi."unitPrice",
+            'totalPrice', oi."totalPrice",
+            'notes', oi.notes,
+            'product', json_build_object('id', p.id, 'name', p.name, 'price', p.price),
+            'modifiers', COALESCE(
+              (SELECT json_agg(json_build_object('id', m.id, 'name', m.name, 'price', m.price))
+               FROM "_ModifierToOrderItem" mtoi
+               JOIN "Modifier" m ON m.id = mtoi."A"
+               WHERE mtoi."B" = oi.id), '[]'::json
+            )
+          )
+        ) FILTER (WHERE oi.id IS NOT NULL) as items,
+        json_build_object('id', u.id, 'name', u.name) as "createdBy"
+      FROM "Order" o
+      LEFT JOIN "OrderItem" oi ON oi."orderId" = o.id
+      LEFT JOIN "Product" p ON p.id = oi."productId"
+      LEFT JOIN "User" u ON u.id = o."createdById"
+      WHERE o.id = ${req.params.id}
+      GROUP BY o.id, u.id, u.name
+    `;
+    
     const queryTime = Date.now() - startTime;
     console.log(`[PERF] Single order query took ${queryTime}ms`);
 
-    if (!order) {
+    if (!result || result.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found',
+      });
+    }
+
+    const order = result[0];
       return res.status(404).json({
         success: false,
         error: 'Order not found',
