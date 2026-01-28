@@ -13,4 +13,14 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     printReceipt: (orderData) => electron_1.ipcRenderer.invoke('print-receipt', orderData),
     getPrinters: () => electron_1.ipcRenderer.invoke('get-printers'),
     getPrintQueue: () => electron_1.ipcRenderer.invoke('get-print-queue'),
+    // VFD Customer Display
+    vfd: {
+        connect: (portPath, baudRate) => electron_1.ipcRenderer.invoke('vfd-connect', portPath, baudRate),
+        disconnect: () => electron_1.ipcRenderer.invoke('vfd-disconnect'),
+        status: () => electron_1.ipcRenderer.invoke('vfd-status'),
+        listPorts: () => electron_1.ipcRenderer.invoke('vfd-list-ports'),
+        welcome: () => electron_1.ipcRenderer.invoke('vfd-welcome'),
+        total: (total) => electron_1.ipcRenderer.invoke('vfd-total', total),
+        clear: () => electron_1.ipcRenderer.invoke('vfd-clear'),
+    },
 });

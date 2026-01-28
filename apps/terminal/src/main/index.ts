@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import Store from 'electron-store';
+import * as vfd from './vfd';
 
 // Initialize store for settings
 const store = new Store({
@@ -10,6 +11,9 @@ const store = new Store({
     kioskMode: false,
     printerEnabled: true,
     printerName: 'Element_RW973_Mk',
+    vfdEnabled: false,
+    vfdPort: '/dev/ttyUSB0',
+    vfdBaudRate: 9600,
   },
 });
 
@@ -104,6 +108,9 @@ ipcMain.handle('get-settings', () => {
     kioskMode: store.get('kioskMode'),
     printerEnabled: store.get('printerEnabled'),
     printerName: store.get('printerName'),
+    vfdEnabled: store.get('vfdEnabled'),
+    vfdPort: store.get('vfdPort'),
+    vfdBaudRate: store.get('vfdBaudRate'),
   };
 });
 
@@ -409,7 +416,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Left align for details
       addBytes(ESC, 0x61, 0x00);
-      addText(`Date: ${new Date().toLocaleString()}`);
+      addText(`Date: ${new Date().toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`);
       addBytes(LF);
       if (orderData.customerName && orderData.customerName !== 'Guest') {
         addText(`Customer: ${orderData.customerName}`);
@@ -478,8 +485,8 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
     }
     
-    // Feed and cut
-    addBytes(LF, LF, LF, LF);
+    // Feed and cut - extra lines for tear-off
+    addBytes(LF, LF, LF, LF, LF, LF, LF, LF);
     addBytes(GS, 0x56, 0x00); // Full cut
     
     // Write to temporary file
@@ -499,4 +506,60 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
     console.error('Print error:', error);
     return { success: false, error: error.message };
   }
+});
+
+// ============================================
+// VFD Customer Display IPC Handlers
+// ============================================
+
+// Initialize VFD on app start if enabled
+app.whenReady().then(async () => {
+  const vfdEnabled = store.get('vfdEnabled') as boolean;
+  if (vfdEnabled) {
+    const vfdPort = store.get('vfdPort') as string;
+    const vfdBaudRate = store.get('vfdBaudRate') as number;
+    console.log(`[VFD] Auto-connecting to ${vfdPort}...`);
+    await vfd.initVFD(vfdPort, vfdBaudRate);
+  }
+});
+
+// Connect to VFD
+ipcMain.handle('vfd-connect', async (_, portPath?: string, baudRate?: number) => {
+  const port = portPath || (store.get('vfdPort') as string);
+  const baud = baudRate || (store.get('vfdBaudRate') as number);
+  return await vfd.initVFD(port, baud);
+});
+
+// Disconnect VFD
+ipcMain.handle('vfd-disconnect', async () => {
+  await vfd.closeVFD();
+  return { success: true };
+});
+
+// Check VFD status
+ipcMain.handle('vfd-status', () => {
+  return { connected: vfd.isVFDConnected() };
+});
+
+// List available serial ports
+ipcMain.handle('vfd-list-ports', async () => {
+  return await vfd.listSerialPorts();
+});
+
+// Show welcome message
+ipcMain.handle('vfd-welcome', () => {
+  vfd.showWelcome();
+  return { success: true };
+});
+
+// Show total
+ipcMain.handle('vfd-total', (_, total: number) => {
+  vfd.showTotal(total);
+  return { success: true };
+});
+
+// Clear display
+ipcMain.handle('vfd-clear', () => {
+  vfd.clearDisplay();
+  return { success: true };
 });

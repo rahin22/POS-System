@@ -1,6 +1,6 @@
 {
   "name": "kebabpos-terminal",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Electron POS Terminal for Kebab Shop",
   "main": "dist/main/index.js",
   "homepage": "https://github.com/yourusername/kebab-pos",
@@ -33,7 +33,9 @@
       {
         "from": "assets/",
         "to": "assets/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "linux": {
@@ -57,7 +59,8 @@
     "escpos": "^3.0.0-alpha.6",
     "escpos-network": "^3.0.0-alpha.4",
     "escpos-usb": "^3.0.0-alpha.4",
-    "lucide-react": "^0.563.0"
+    "lucide-react": "^0.563.0",
+    "serialport": "^13.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.45",

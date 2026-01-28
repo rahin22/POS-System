@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, RefreshCw } from 'lucide-react';
+import { Settings, Printer, RefreshCw, Monitor } from 'lucide-react';
 
 export function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -7,9 +7,14 @@ export function SettingsPage() {
     kioskMode: false,
     printerEnabled: true,
     printerName: 'Element_RW973_Mk',
+    vfdEnabled: false,
+    vfdPort: '/dev/ttyUSB0',
+    vfdBaudRate: 9600,
   });
   const [saved, setSaved] = useState(false);
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
+  const [availablePorts, setAvailablePorts] = useState<{ path: string; manufacturer?: string }[]>([]);
+  const [vfdStatus, setVfdStatus] = useState<{ connected: boolean }>({ connected: false });
   const [printQueue, setPrintQueue] = useState<Array<{ job: string; user: string; size: string; date: string }>>([]);
   const [loading, setLoading] = useState(false);
 
@@ -17,6 +22,8 @@ export function SettingsPage() {
     loadSettings();
     loadPrinters();
     loadPrintQueue();
+    loadSerialPorts();
+    loadVfdStatus();
   }, []);
 
   const loadSettings = async () => {
@@ -34,6 +41,48 @@ export function SettingsPage() {
         setAvailablePrinters(result.printers);
       }
       setLoading(false);
+    }
+  };
+
+  const loadSerialPorts = async () => {
+    if (window.electronAPI?.vfd?.listPorts) {
+      const ports = await window.electronAPI.vfd.listPorts();
+      setAvailablePorts(ports);
+    }
+  };
+
+  const loadVfdStatus = async () => {
+    if (window.electronAPI?.vfd?.status) {
+      const status = await window.electronAPI.vfd.status();
+      setVfdStatus(status);
+    }
+  };
+
+  const connectVfd = async () => {
+    if (window.electronAPI?.vfd?.connect) {
+      const result = await window.electronAPI.vfd.connect(settings.vfdPort, settings.vfdBaudRate);
+      if (result.success) {
+        setVfdStatus({ connected: true });
+      } else {
+        alert('Failed to connect: ' + result.error);
+      }
+    }
+  };
+
+  const disconnectVfd = async () => {
+    if (window.electronAPI?.vfd?.disconnect) {
+      await window.electronAPI.vfd.disconnect();
+      setVfdStatus({ connected: false });
+    }
+  };
+
+  const testVfd = async () => {
+    if (window.electronAPI?.vfd) {
+      // Show a test total, then welcome
+      await window.electronAPI.vfd.total(123.45);
+      setTimeout(async () => {
+        await window.electronAPI.vfd.welcome();
+      }, 3000);
     }
   };
 
@@ -192,6 +241,118 @@ export function SettingsPage() {
                   }`}
                 />
               </button>
+            </div>
+
+            {/* VFD Customer Display Section */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-4">
+                <Monitor className="w-5 h-5 text-gray-600" />
+                <h2 className="text-lg font-semibold">Customer Display (VFD)</h2>
+                <span className={`ml-auto px-2 py-0.5 text-xs rounded ${
+                  vfdStatus.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {vfdStatus.connected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+
+              {/* VFD Enabled Toggle */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Enable VFD Display
+                  </label>
+                  <p className="text-sm text-gray-500">
+                    Show items and totals on customer display
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSettings({ ...settings, vfdEnabled: !settings.vfdEnabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.vfdEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.vfdEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* VFD Port Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Serial Port
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={settings.vfdPort}
+                    onChange={(e) => setSettings({ ...settings, vfdPort: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {availablePorts.length > 0 ? (
+                      availablePorts.map((port) => (
+                        <option key={port.path} value={port.path}>
+                          {port.path} {port.manufacturer ? `(${port.manufacturer})` : ''}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={settings.vfdPort}>{settings.vfdPort}</option>
+                    )}
+                  </select>
+                  <button
+                    onClick={loadSerialPorts}
+                    className="px-3 py-2 text-gray-600 hover:text-gray-800"
+                    title="Refresh ports"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* VFD Baud Rate */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Baud Rate
+                </label>
+                <select
+                  value={settings.vfdBaudRate}
+                  onChange={(e) => setSettings({ ...settings, vfdBaudRate: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={9600}>9600</option>
+                  <option value={19200}>19200</option>
+                  <option value={38400}>38400</option>
+                  <option value={115200}>115200</option>
+                </select>
+              </div>
+
+              {/* VFD Controls */}
+              <div className="flex gap-2">
+                {vfdStatus.connected ? (
+                  <>
+                    <button
+                      onClick={disconnectVfd}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                      Disconnect
+                    </button>
+                    <button
+                      onClick={testVfd}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    >
+                      Test Display
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={connectVfd}
+                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                  >
+                    Connect VFD
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Save Button */}

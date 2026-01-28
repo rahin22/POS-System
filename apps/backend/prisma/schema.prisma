@@ -87,7 +87,8 @@ model ProductModifierGroup {
 
 model Order {
   id            String         @id @default(cuid())
-  orderNumber   Int            @default(autoincrement())
+  orderNumber   Int            // Daily order number, resets each day
+  archived      Boolean        @default(false)
   status        OrderStatus    @default(received)
   type          OrderType      @default(takeaway)
   subtotal      Float
@@ -113,6 +114,7 @@ model Order {
   @@index([createdAt(sort: Desc)])
   @@index([status])
   @@index([status, createdAt(sort: Desc)])
+  @@index([archived])
 }
 
 model OrderItem {

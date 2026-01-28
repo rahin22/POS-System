@@ -9,7 +9,7 @@ const router = Router();
 // Get all orders
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { status, type, date, page = '1', limit = '50' } = req.query;
+    const { status, type, date, page = '1', limit = '50', includeArchived = 'false' } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -41,10 +41,14 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
+    // Archive filter - exclude archived by default unless explicitly requested
+    const archivedFilter = includeArchived === 'true' ? {} : { archived: false };
+
     const where = {
       ...statusFilter,
       ...(type && { type: (type as string).replace('-', '_') as any }),
       ...dateFilter,
+      ...archivedFilter,
     };
 
     // Check if full details requested (for single order view)
@@ -245,9 +249,29 @@ router.post('/', async (req: AuthRequest, res) => {
     const tax = afterDiscount * (gstRate / 100);
     const total = afterDiscount + tax;
 
+    // Get next daily order number
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const lastOrderToday = await prisma.order.findFirst({
+      where: {
+        createdAt: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+      orderBy: { orderNumber: 'desc' },
+      select: { orderNumber: true },
+    });
+
+    const orderNumber = (lastOrderToday?.orderNumber || 0) + 1;
+
     // Create order
     const order = await prisma.order.create({
       data: {
+        orderNumber,
         type: type.replace('-', '_') as any,
         subtotal,
         discount: discountAmount,

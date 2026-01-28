@@ -1,5 +1,19 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useApi } from '../context/ApiContext';
+
+// VFD update helper - simplified to just total and welcome
+const updateVFD = async (action: 'total' | 'welcome', total?: number) => {
+  if (!window.electronAPI?.vfd) return;
+  try {
+    if (action === 'total' && total !== undefined) {
+      await window.electronAPI.vfd.total(total);
+    } else if (action === 'welcome') {
+      await window.electronAPI.vfd.welcome();
+    }
+  } catch (e) {
+    // Silently fail if VFD not available
+  }
+};
 
 export interface CartItem {
   id: string; // Unique cart item ID
@@ -57,6 +71,16 @@ export function useCart(vatRate: number = 10) {
     
     return { subtotal, discount: discountAmount, tax, total };
   }, [vatRate]);
+
+  // Update VFD when cart items change
+  useEffect(() => {
+    const totals = calculateTotals(items, discount);
+    if (items.length === 0) {
+      updateVFD('welcome');
+    } else {
+      updateVFD('total', totals.total);
+    }
+  }, [items, discount, calculateTotals]);
 
   const addItem = useCallback((
     product: { id: string; name: string; price: number },
@@ -128,6 +152,7 @@ export function useCart(vatRate: number = 10) {
   const clearCart = useCallback(() => {
     setItems([]);
     setDiscount(null);
+    // VFD will show welcome via the useEffect
   }, []);
 
   const applyDiscount = useCallback((type: 'percentage' | 'fixed', value: number) => {

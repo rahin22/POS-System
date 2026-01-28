@@ -97,6 +97,8 @@ export function POSLayout() {
           }),
         });
 
+        // VFD will show welcome when cart is cleared (via useEffect in useCart)
+
         // Print receipt if requested (locally via Electron IPC)
         if (printReceipt && response.data) {
           console.log('Print requested, printReceipt:', printReceipt);

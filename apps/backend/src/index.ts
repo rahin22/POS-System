@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -69,6 +70,30 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Start server
 const PORT = process.env.PORT || 3001;
 
+// Archive previous day's orders at midnight
+async function archivePreviousDayOrders() {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const result = await prisma.order.updateMany({
+      where: {
+        archived: false,
+        createdAt: {
+          lt: today,
+        },
+      },
+      data: {
+        archived: true,
+      },
+    });
+    
+    console.log(`📦 Archived ${result.count} orders from previous days`);
+  } catch (error) {
+    console.error('❌ Failed to archive orders:', error);
+  }
+}
+
 async function main() {
   try {
     await prisma.$connect();
@@ -77,6 +102,15 @@ async function main() {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
+
+    // Schedule midnight archive job (runs at 00:00 every day)
+    cron.schedule('0 0 * * *', archivePreviousDayOrders, {
+      timezone: 'Australia/Sydney',
+    });
+    console.log('⏰ Midnight archive job scheduled');
+
+    // Also archive any old orders on startup
+    await archivePreviousDayOrders();
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
