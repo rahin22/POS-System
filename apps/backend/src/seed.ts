@@ -181,12 +181,12 @@ async function main() {
     update: {},
     create: {
       id: 'default',
-      shopName: 'Kebab House',
-      address: '123 High Street\nLondon, UK',
-      phone: '020 1234 5678',
-      vatRate: 20,
-      currency: 'GBP',
-      currencySymbol: '£',
+      shopName: 'Al-Taher Kebabs & Sweets',
+      address: 'Shop 7a/22 Mawson Pl, Mawson ACT 2607',
+      phone: '0434 908 992',
+      vatRate: 10,
+      currency: 'AUD',
+      currencySymbol: '$',
       receiptFooter: 'Thank you for your order!\nVisit us again soon!',
     },
   });

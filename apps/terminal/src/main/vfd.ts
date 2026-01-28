@@ -174,11 +174,29 @@ export function showWelcome(): void {
 }
 
 /**
- * Show total amount - call when cart has items
+ * Show item added with price on line 1, total on line 2
+ */
+export function showItemAdded(itemName: string, price: number, total: number): void {
+  // Line 1: Item name and price (right-aligned price)
+  const priceStr = `$${price.toFixed(2)}`;
+  const maxNameLen = VFD_WIDTH - priceStr.length - 1;
+  const name = itemName.length > maxNameLen ? itemName.substring(0, maxNameLen) : itemName;
+  const line1 = name + ' '.repeat(VFD_WIDTH - name.length - priceStr.length) + priceStr;
+  
+  // Line 2: Total (right-aligned)
+  const totalStr = `$${total.toFixed(2)}`;
+  const line2 = 'Total:' + ' '.repeat(VFD_WIDTH - 6 - totalStr.length) + totalStr;
+  
+  writeDisplay(line1, line2);
+}
+
+/**
+ * Show total amount only - call when updating quantity or removing items
  */
 export function showTotal(total: number): void {
   const priceStr = `$${total.toFixed(2)}`;
-  writeDisplay(centerText('TOTAL'), centerText(priceStr));
+  const line2 = 'Total:' + ' '.repeat(VFD_WIDTH - 6 - priceStr.length) + priceStr;
+  writeDisplay(centerText('TOTAL'), line2);
 }
 
 /**

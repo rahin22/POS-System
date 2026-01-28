@@ -54,7 +54,7 @@ interface SettingsForPrint {
 }
 
 // Format currency
-function formatCurrency(amount: number, symbol: string = '£'): string {
+function formatCurrency(amount: number, symbol: string = '$'): string {
   return `${symbol}${amount.toFixed(2)}`;
 }
 
@@ -447,8 +447,8 @@ function getDefaultSettings(): SettingsForPrint {
     shopName: 'Kebab Shop',
     address: '',
     phone: '',
-    vatRate: 20,
-    currencySymbol: '£',
+    vatRate: 10,
+    currencySymbol: '$',
     receiptFooter: 'Thank you for your order!',
   };
 }

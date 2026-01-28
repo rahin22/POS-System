@@ -42,8 +42,8 @@ export const DEFAULT_SETTINGS = {
   address: '',
   phone: '',
   vatRate: 20,
-  currency: 'GBP',
-  currencySymbol: '£',
+  currency: 'AUD',
+  currencySymbol: '$',
   receiptFooter: 'Thank you for your order!',
 };
 

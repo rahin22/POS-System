@@ -1,12 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useApi } from '../context/ApiContext';
 
-// VFD update helper - simplified to just total and welcome
-const updateVFD = async (action: 'total' | 'welcome', total?: number) => {
+// VFD update helper
+const updateVFD = async (action: 'itemAdded' | 'total' | 'welcome', data?: { itemName?: string; price?: number; total?: number }) => {
   if (!window.electronAPI?.vfd) return;
   try {
-    if (action === 'total' && total !== undefined) {
-      await window.electronAPI.vfd.total(total);
+    if (action === 'itemAdded' && data?.itemName && data?.price !== undefined && data?.total !== undefined) {
+      await window.electronAPI.vfd.itemAdded(data.itemName, data.price, data.total);
+    } else if (action === 'total' && data?.total !== undefined) {
+      await window.electronAPI.vfd.total(data.total);
     } else if (action === 'welcome') {
       await window.electronAPI.vfd.welcome();
     }
@@ -72,13 +74,26 @@ export function useCart(vatRate: number = 10) {
     return { subtotal, discount: discountAmount, tax, total };
   }, [vatRate]);
 
+  // Track last added item for VFD display
+  const lastAddedItemRef = useRef<{ name: string; price: number } | null>(null);
+
   // Update VFD when cart items change
   useEffect(() => {
     const totals = calculateTotals(items, discount);
     if (items.length === 0) {
       updateVFD('welcome');
+      lastAddedItemRef.current = null;
+    } else if (lastAddedItemRef.current) {
+      // Show item that was just added with running total
+      updateVFD('itemAdded', {
+        itemName: lastAddedItemRef.current.name,
+        price: lastAddedItemRef.current.price,
+        total: totals.total,
+      });
+      lastAddedItemRef.current = null;
     } else {
-      updateVFD('total', totals.total);
+      // Just show total (for quantity changes, removals, etc.)
+      updateVFD('total', { total: totals.total });
     }
   }, [items, discount, calculateTotals]);
 
@@ -91,6 +106,9 @@ export function useCart(vatRate: number = 10) {
     const modifierTotal = modifiers.reduce((sum, m) => sum + m.price, 0);
     const unitPrice = product.price + modifierTotal;
     const totalPrice = unitPrice * quantity;
+
+    // Store item info for VFD display
+    lastAddedItemRef.current = { name: product.name, price: totalPrice };
 
     const newItem: CartItem = {
       id: `${product.id}-${Date.now()}`, // Unique ID for this cart entry

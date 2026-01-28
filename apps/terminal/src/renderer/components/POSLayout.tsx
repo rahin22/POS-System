@@ -29,8 +29,8 @@ export function POSLayout() {
       try {
         const response = await fetchApi<{ success: boolean; data: any }>('/api/settings');
         if (response.success) {
-          setVatRate(response.data.vatRate || 20);
-          setCurrencySymbol(response.data.currencySymbol || '£');
+          setVatRate(response.data.vatRate || 10);
+          setCurrencySymbol(response.data.currencySymbol || '$');
         }
       } catch (err) {
         console.error('Failed to load settings:', err);

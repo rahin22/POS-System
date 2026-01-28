@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     status: () => ipcRenderer.invoke('vfd-status'),
     listPorts: () => ipcRenderer.invoke('vfd-list-ports'),
     welcome: () => ipcRenderer.invoke('vfd-welcome'),
+    itemAdded: (itemName: string, price: number, total: number) => ipcRenderer.invoke('vfd-item-added', itemName, price, total),
     total: (total: number) => ipcRenderer.invoke('vfd-total', total),
     clear: () => ipcRenderer.invoke('vfd-clear'),
   },
@@ -56,6 +57,7 @@ declare global {
         status: () => Promise<{ connected: boolean }>;
         listPorts: () => Promise<{ path: string; manufacturer?: string }[]>;
         welcome: () => Promise<{ success: boolean }>;
+        itemAdded: (itemName: string, price: number, total: number) => Promise<{ success: boolean }>;
         total: (total: number) => Promise<{ success: boolean }>;
         clear: () => Promise<{ success: boolean }>;
       };

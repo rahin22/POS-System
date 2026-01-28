@@ -552,7 +552,13 @@ ipcMain.handle('vfd-welcome', () => {
   return { success: true };
 });
 
-// Show total
+// Show item added with price and running total
+ipcMain.handle('vfd-item-added', (_, itemName: string, price: number, total: number) => {
+  vfd.showItemAdded(itemName, price, total);
+  return { success: true };
+});
+
+// Show total only
 ipcMain.handle('vfd-total', (_, total: number) => {
   vfd.showTotal(total);
   return { success: true };

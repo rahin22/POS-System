@@ -20,6 +20,7 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         status: () => electron_1.ipcRenderer.invoke('vfd-status'),
         listPorts: () => electron_1.ipcRenderer.invoke('vfd-list-ports'),
         welcome: () => electron_1.ipcRenderer.invoke('vfd-welcome'),
+        itemAdded: (itemName, price, total) => electron_1.ipcRenderer.invoke('vfd-item-added', itemName, price, total),
         total: (total) => electron_1.ipcRenderer.invoke('vfd-total', total),
         clear: () => electron_1.ipcRenderer.invoke('vfd-clear'),
     },

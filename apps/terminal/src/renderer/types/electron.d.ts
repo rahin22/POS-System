@@ -28,6 +28,7 @@ declare global {
         status: () => Promise<{ connected: boolean }>;
         listPorts: () => Promise<{ path: string; manufacturer?: string }[]>;
         welcome: () => Promise<{ success: boolean }>;
+        itemAdded: (itemName: string, price: number, total: number) => Promise<{ success: boolean }>;
         total: (total: number) => Promise<{ success: boolean }>;
         clear: () => Promise<{ success: boolean }>;
       };

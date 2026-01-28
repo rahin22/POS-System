@@ -19,9 +19,9 @@ export function SettingsPage() {
     shopName: '',
     address: '',
     phone: '',
-    vatRate: 20,
-    currency: 'GBP',
-    currencySymbol: '£',
+    vatRate: 10,
+    currency: 'AUD',
+    currencySymbol: '$',
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

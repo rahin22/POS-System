@@ -104,7 +104,7 @@ export function OrdersPage() {
                   <td>{order.type.replace('_', ' ')}</td>
                   <td>{order.customerName || '-'}</td>
                   <td>{order.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
-                  <td>£{order.total.toFixed(2)}</td>
+                  <td>${order.total.toFixed(2)}</td>
                   <td>
                     <span
                       className={`px-2 py-1 rounded text-xs ${
@@ -209,7 +209,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
                   <span>
                     {item.quantity}x {item.product.name}
                   </span>
-                  <span>£{item.totalPrice.toFixed(2)}</span>
+                  <span>${item.totalPrice.toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -217,7 +217,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
 
           <div className="border-t pt-4 flex justify-between text-lg font-bold">
             <span>Total</span>
-            <span>£{order.total.toFixed(2)}</span>
+            <span>${order.total.toFixed(2)}</span>
           </div>
         </div>
 

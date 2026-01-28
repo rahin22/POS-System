@@ -113,7 +113,7 @@ export function DashboardPage() {
                   <td>
                     <StatusBadge status={order.status} />
                   </td>
-                  <td>£{order.total.toFixed(2)}</td>
+                  <td>${order.total.toFixed(2)}</td>
                   <td className="text-gray-500">
                     {new Date(order.createdAt).toLocaleTimeString()}
                   </td>

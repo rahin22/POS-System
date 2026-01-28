@@ -519,7 +519,12 @@ electron_1.ipcMain.handle('vfd-welcome', () => {
     vfd.showWelcome();
     return { success: true };
 });
-// Show total
+// Show item added with price and running total
+electron_1.ipcMain.handle('vfd-item-added', (_, itemName, price, total) => {
+    vfd.showItemAdded(itemName, price, total);
+    return { success: true };
+});
+// Show total only
 electron_1.ipcMain.handle('vfd-total', (_, total) => {
     vfd.showTotal(total);
     return { success: true };

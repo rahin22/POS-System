@@ -43,7 +43,7 @@ function AppContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<Settings>({
     shopName: 'Kebab Shop',
-    currencySymbol: '£',
+    currencySymbol: '$',
     vatRate: 20,
   });
   const [cart, setCart] = useState<CartItem[]>([]);
