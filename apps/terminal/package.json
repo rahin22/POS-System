@@ -1,12 +1,12 @@
 {
   "name": "kebabpos-terminal",
   "version": "1.0.2",
-  "description": "Electron POS Terminal for Kebab Shop",
+  "description": "Electron POS Terminal for Al-Taher Kebab",
   "main": "dist/main/index.js",
-  "homepage": "https://github.com/yourusername/kebab-pos",
+  "homepage": "https://github.com/rahin22/POS-System",
   "author": {
-    "name": "Your Name",
-    "email": "your.email@example.com"
+    "name": "Quantiv Technologies",
+    "email": "contact@quantivtech.com.au"
   },
   "scripts": {
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.kebabpos.terminal",
-    "productName": "KebabPOS",
+    "productName": "Al-Taher Kebab POS",
     "directories": {
       "output": "release"
     },
@@ -44,7 +44,8 @@
         "deb"
       ],
       "category": "Office",
-      "maintainer": "your.email@example.com"
+      "maintainer": "contact@quantivtech.com.au",
+      "icon": "assets/icon.png"
     },
     "win": {
       "target": [
