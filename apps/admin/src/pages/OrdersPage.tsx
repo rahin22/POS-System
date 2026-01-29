@@ -29,7 +29,7 @@ export function OrdersPage() {
     try {
       setIsLoading(true);
       const res = await fetchApi<{ success: boolean; data: { items: Order[] } }>(
-        `/api/orders?date=${dateFilter}&limit=100`
+        `/api/orders?date=${dateFilter}&limit=100&includeItems=true`
       );
       if (res.success) setOrders(res.data.items);
     } catch (error) {
@@ -103,7 +103,7 @@ export function OrdersPage() {
                   <td className="font-medium">#{order.orderNumber}</td>
                   <td>{order.type.replace('_', ' ')}</td>
                   <td>{order.customerName || '-'}</td>
-                  <td>{order.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
+                  <td>{(order.items || []).reduce((sum, i) => sum + i.quantity, 0)}</td>
                   <td>${order.total.toFixed(2)}</td>
                   <td>
                     <span
