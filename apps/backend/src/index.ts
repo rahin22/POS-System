@@ -73,14 +73,22 @@ const PORT = process.env.PORT || 3001;
 // Archive previous day's orders at midnight
 async function archivePreviousDayOrders() {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Get current time in Sydney timezone
+    const nowInSydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const todayMidnight = new Date(nowInSydney);
+    todayMidnight.setHours(0, 0, 0, 0);
+    
+    // Convert back to UTC for database query
+    const sydneyOffset = 11 * 60 * 60 * 1000; // AEDT is UTC+11
+    const todayMidnightUTC = new Date(todayMidnight.getTime() - sydneyOffset + todayMidnight.getTimezoneOffset() * 60 * 1000);
+    
+    console.log(`[Archive] Sydney time: ${nowInSydney.toISOString()}, cutoff: ${todayMidnightUTC.toISOString()}`);
     
     const result = await prisma.order.updateMany({
       where: {
         archived: false,
         createdAt: {
-          lt: today,
+          lt: todayMidnightUTC,
         },
       },
       data: {

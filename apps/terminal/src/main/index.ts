@@ -27,15 +27,15 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 600,
-    fullscreen: true,  // Always start fullscreen
+    fullscreen: isKiosk,
     kiosk: isKiosk,
-    autoHideMenuBar: true,
+    autoHideMenuBar: isKiosk,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    icon: path.join(__dirname, '../../assets/icon.png'),
+    icon: path.join(__dirname, '../renderer/assets/icon.png'),
   });
 
   // In development, load from Vite dev server

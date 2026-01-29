@@ -249,17 +249,24 @@ router.post('/', async (req: AuthRequest, res) => {
     const tax = afterDiscount * (gstRate / 100);
     const total = afterDiscount + tax;
 
-    // Get next daily order number
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Get next daily order number (using Sydney timezone)
+    const nowInSydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const todayMidnight = new Date(nowInSydney);
+    todayMidnight.setHours(0, 0, 0, 0);
+    const tomorrowMidnight = new Date(todayMidnight);
+    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+    
+    // Convert to UTC for database query
+    const sydneyOffset = 11 * 60 * 60 * 1000; // AEDT is UTC+11
+    const localOffset = todayMidnight.getTimezoneOffset() * 60 * 1000;
+    const todayUTC = new Date(todayMidnight.getTime() - sydneyOffset + localOffset);
+    const tomorrowUTC = new Date(tomorrowMidnight.getTime() - sydneyOffset + localOffset);
 
     const lastOrderToday = await prisma.order.findFirst({
       where: {
         createdAt: {
-          gte: today,
-          lt: tomorrow,
+          gte: todayUTC,
+          lt: tomorrowUTC,
         },
       },
       orderBy: { orderNumber: 'desc' },
