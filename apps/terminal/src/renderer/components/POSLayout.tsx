@@ -9,6 +9,7 @@ import { WeightModal } from './WeightModal';
 import { useProducts } from '../hooks/useProducts';
 import { useCart, CartItem } from '../hooks/useCart';
 import { useApi } from '../context/ApiContext';
+import { Search, X } from 'lucide-react';
 
 interface WeightProduct {
   id: string;
@@ -21,6 +22,7 @@ export function POSLayout() {
   const { fetchApi } = useApi();
   const { products, categories, isLoading, error, getProductsByCategory } = useProducts();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
   const [showComment, setShowComment] = useState(false);
@@ -55,9 +57,21 @@ export function POSLayout() {
     }
   }, [categories, selectedCategory]);
 
-  const displayedProducts = selectedCategory
-    ? getProductsByCategory(selectedCategory)
-    : products;
+  // Filter products by search and category
+  const displayedProducts = (() => {
+    // If searching, search ALL products across all categories
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      return products.filter(product =>
+        product.name.toLowerCase().includes(query)
+      );
+    }
+
+    // Otherwise, filter by selected category
+    return selectedCategory
+      ? getProductsByCategory(selectedCategory)
+      : products;
+  })();
 
   const handleAddCustomItem = (name: string, price: number) => {
     cart.addItem(
@@ -232,6 +246,33 @@ export function POSLayout() {
             selectedId={selectedCategory}
             onSelect={setSelectedCategory}
           />
+
+          {/* Search bar */}
+          <div className="px-4 py-3 bg-white border-b border-gray-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products..."
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+            {searchQuery && (
+              <p className="text-xs text-gray-500 mt-1">
+                {displayedProducts.length} product{displayedProducts.length !== 1 ? 's' : ''} found
+              </p>
+            )}
+          </div>
 
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto p-4">
