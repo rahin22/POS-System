@@ -231,6 +231,7 @@ router.post('/', async (req: AuthRequest, res) => {
     const gstRate = settings?.vatRate || 10;
 
     // Apply discount and calculate totals
+    // Note: GST is included in product prices, so we extract it from the total
     let discountAmount = discount?.amount || 0;
     
     // If coupon was used, increment usage count
@@ -246,8 +247,8 @@ router.post('/', async (req: AuthRequest, res) => {
     }
 
     const afterDiscount = Math.max(0, subtotal - discountAmount);
-    const tax = afterDiscount * (gstRate / 100);
-    const total = afterDiscount + tax;
+    const total = afterDiscount; // Total already includes GST
+    const tax = total - (total / (1 + gstRate / 100)); // Extract GST from total
 
     // Get next daily order number (using Sydney timezone)
     const nowInSydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));

@@ -68,8 +68,8 @@ export function useCart(vatRate: number = 10) {
     }
     
     const afterDiscount = subtotal - discountAmount;
-    const tax = afterDiscount * (vatRate / 100);
-    const total = afterDiscount + tax;
+    const total = afterDiscount; // Total already includes GST
+    const tax = total - (total / (1 + vatRate / 100)); // Extract GST from total
     
     return { subtotal, discount: discountAmount, tax, total };
   }, [vatRate]);
