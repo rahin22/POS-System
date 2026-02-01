@@ -36,6 +36,7 @@ model Product {
   name           String
   description    String?
   price          Float
+  pricePerKg     Float?                 // Optional price per kilogram for weight-based sales
   image          String?
   isAvailable    Boolean                @default(true)
   sortOrder      Int                    @default(0)

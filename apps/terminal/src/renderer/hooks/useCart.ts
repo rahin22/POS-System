@@ -31,6 +31,10 @@ export interface CartItem {
     name: string;
     price: number;
   }>;
+  // Weight-based item fields
+  isWeightBased?: boolean;
+  weightKg?: number;
+  pricePerKg?: number;
 }
 
 export interface Discount {
@@ -101,11 +105,25 @@ export function useCart(vatRate: number = 10) {
     product: { id: string; name: string; price: number },
     quantity: number = 1,
     modifiers: Array<{ id: string; name: string; price: number }> = [],
-    notes?: string
+    notes?: string,
+    weightOptions?: { isWeightBased: true; weightKg: number; pricePerKg: number }
   ) => {
     const modifierTotal = modifiers.reduce((sum, m) => sum + m.price, 0);
-    const unitPrice = product.price + modifierTotal;
-    const totalPrice = unitPrice * quantity;
+    
+    let unitPrice: number;
+    let totalPrice: number;
+    let displayName = product.name;
+
+    if (weightOptions?.isWeightBased) {
+      // Weight-based pricing
+      totalPrice = weightOptions.pricePerKg * weightOptions.weightKg;
+      unitPrice = totalPrice; // For weight items, unit price = total
+      displayName = `${product.name} (${weightOptions.weightKg}kg)`;
+    } else {
+      // Standard quantity-based pricing
+      unitPrice = product.price + modifierTotal;
+      totalPrice = unitPrice * quantity;
+    }
 
     // Store item info for VFD display
     lastAddedItemRef.current = { name: product.name, price: totalPrice };
@@ -113,13 +131,17 @@ export function useCart(vatRate: number = 10) {
     const newItem: CartItem = {
       id: `${product.id}-${Date.now()}`, // Unique ID for this cart entry
       productId: product.id,
-      productName: product.name,
+      productName: displayName,
       basePrice: product.price,
-      quantity,
+      quantity: weightOptions?.isWeightBased ? 1 : quantity, // Weight items always qty=1
       unitPrice,
       totalPrice,
       notes,
       modifiers,
+      // Weight-based fields
+      isWeightBased: weightOptions?.isWeightBased,
+      weightKg: weightOptions?.weightKg,
+      pricePerKg: weightOptions?.pricePerKg,
     };
 
     setItems((prev) => [...prev, newItem]);

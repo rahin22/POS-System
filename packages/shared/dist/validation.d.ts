@@ -35,6 +35,7 @@ export declare const createProductSchema: z.ZodObject<{
     name: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     price: z.ZodNumber;
+    pricePerKg: z.ZodNullable<z.ZodOptional<z.ZodNumber>>;
     categoryId: z.ZodString;
     image: z.ZodOptional<z.ZodString>;
     imageUrl: z.ZodOptional<z.ZodString>;
@@ -47,6 +48,7 @@ export declare const createProductSchema: z.ZodObject<{
     categoryId: string;
     isAvailable: boolean;
     description?: string | undefined;
+    pricePerKg?: number | null | undefined;
     image?: string | undefined;
     imageUrl?: string | undefined;
 }, {
@@ -55,6 +57,7 @@ export declare const createProductSchema: z.ZodObject<{
     categoryId: string;
     description?: string | undefined;
     sortOrder?: number | undefined;
+    pricePerKg?: number | null | undefined;
     image?: string | undefined;
     imageUrl?: string | undefined;
     isAvailable?: boolean | undefined;
@@ -63,6 +66,7 @@ export declare const updateProductSchema: z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
     price: z.ZodOptional<z.ZodNumber>;
+    pricePerKg: z.ZodNullable<z.ZodOptional<z.ZodNumber>>;
     categoryId: z.ZodOptional<z.ZodString>;
     image: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     imageUrl: z.ZodNullable<z.ZodOptional<z.ZodString>>;
@@ -73,6 +77,7 @@ export declare const updateProductSchema: z.ZodObject<{
     description?: string | undefined;
     sortOrder?: number | undefined;
     price?: number | undefined;
+    pricePerKg?: number | null | undefined;
     categoryId?: string | undefined;
     image?: string | null | undefined;
     imageUrl?: string | null | undefined;
@@ -82,6 +87,7 @@ export declare const updateProductSchema: z.ZodObject<{
     description?: string | undefined;
     sortOrder?: number | undefined;
     price?: number | undefined;
+    pricePerKg?: number | null | undefined;
     categoryId?: string | undefined;
     image?: string | null | undefined;
     imageUrl?: string | null | undefined;

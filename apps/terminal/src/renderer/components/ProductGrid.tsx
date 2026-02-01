@@ -4,6 +4,7 @@ interface Product {
   id: string;
   name: string;
   price: number;
+  pricePerKg?: number | null;
   description?: string;
   image?: string;
   imageUrl?: string;
@@ -24,6 +25,8 @@ export function ProductGrid({ products, currencySymbol, onProductClick }: Produc
       </div>
     );
   }
+
+  const formatPrice = (price: number) => `${currencySymbol}${price.toFixed(2)}`;
 
   return (
     <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -48,9 +51,21 @@ export function ProductGrid({ products, currencySymbol, onProductClick }: Produc
           <span className="text-sm font-medium text-gray-800 text-center line-clamp-2">
             {product.name}
           </span>
-          <span className="text-primary-600 font-bold mt-1">
-            {currencySymbol}{product.price.toFixed(2)}
-          </span>
+          {product.pricePerKg ? (
+            <div className="text-center mt-1">
+              <span className="text-primary-600 font-bold text-sm">
+                {formatPrice(product.price)} ea
+              </span>
+              <span className="text-gray-400 mx-1">|</span>
+              <span className="text-primary-600 font-bold text-sm">
+                {formatPrice(product.pricePerKg)}/kg
+              </span>
+            </div>
+          ) : (
+            <span className="text-primary-600 font-bold mt-1">
+              {formatPrice(product.price)}
+            </span>
+          )}
         </button>
       ))}
     </div>

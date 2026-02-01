@@ -24,6 +24,7 @@ export const createProductSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   description: z.string().max(500).optional(),
   price: z.number().min(0, 'Price must be positive'),
+  pricePerKg: z.number().min(0).optional().nullable(), // Optional price per kilogram for weight-based sales
   categoryId: z.string().min(1, 'Category is required'),
   image: z.string().url().optional(),
   imageUrl: z.string().url().optional(),
@@ -35,6 +36,7 @@ export const updateProductSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   price: z.number().min(0).optional(),
+  pricePerKg: z.number().min(0).optional().nullable(), // Optional price per kilogram for weight-based sales
   categoryId: z.string().optional(),
   image: z.string().url().optional().nullable(),
   imageUrl: z.string().url().optional().nullable(),

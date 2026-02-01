@@ -123,6 +123,11 @@ export function Cart({
             <div key={item.id} className="cart-item">
               <div className="flex-1">
                 <p className="font-medium text-gray-800">{item.productName}</p>
+                {item.isWeightBased && item.weightKg && item.pricePerKg && (
+                  <p className="text-xs text-gray-500">
+                    {item.weightKg}kg @ {formatPrice(item.pricePerKg)}/kg
+                  </p>
+                )}
                 {item.modifiers.length > 0 && (
                   <p className="text-xs text-gray-500">
                     {item.modifiers.map((m) => m.name).join(', ')}
@@ -137,20 +142,24 @@ export function Cart({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                  className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold"
-                >
-                  −
-                </button>
-                <span className="w-8 text-center font-medium">{item.quantity}</span>
-                <button
-                  onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                  className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold"
-                >
-                  +
-                </button>
-                {onEditItem && (
+                {!item.isWeightBased && (
+                  <>
+                    <button
+                      onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                      className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center font-medium">{item.quantity}</span>
+                    <button
+                      onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                      className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold"
+                    >
+                      +
+                    </button>
+                  </>
+                )}
+                {onEditItem && !item.isWeightBased && (
                   <button
                     onClick={() => onEditItem(item)}
                     className="w-10 h-10 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 flex items-center justify-center ml-2 text-lg"

@@ -13,6 +13,7 @@ interface Product {
   name: string;
   description?: string;
   price: number;
+  pricePerKg?: number | null;
   imageUrl?: string;
   categoryId: string;
   isAvailable: boolean;
@@ -709,6 +710,7 @@ function ProductModal({ product, categories, currencySymbol, onSave, onClose }: 
   const [name, setName] = useState(product?.name || '');
   const [description, setDescription] = useState(product?.description || '');
   const [price, setPrice] = useState(product?.price?.toString() || '');
+  const [pricePerKg, setPricePerKg] = useState(product?.pricePerKg?.toString() || '');
   const [categoryId, setCategoryId] = useState(product?.categoryId || categories[0]?.id || '');
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
   const [imageUrl, setImageUrl] = useState(product?.imageUrl || '');
@@ -777,6 +779,7 @@ function ProductModal({ product, categories, currencySymbol, onSave, onClose }: 
       name,
       description: description || undefined,
       price: parseFloat(price),
+      pricePerKg: pricePerKg ? parseFloat(pricePerKg) : null,
       categoryId,
       isAvailable,
       imageUrl: finalImageUrl || undefined,
@@ -865,6 +868,19 @@ function ProductModal({ product, categories, currencySymbol, onSave, onClose }: 
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Price per kg ({currencySymbol})</label>
+            <input
+              type="number"
+              step="0.01"
+              value={pricePerKg}
+              onChange={(e) => setPricePerKg(e.target.value)}
+              placeholder="Leave empty if not sold by kg"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Optional: Set this for items that can be sold by weight</p>
           </div>
 
           <div>

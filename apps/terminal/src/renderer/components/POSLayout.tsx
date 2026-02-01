@@ -5,9 +5,17 @@ import { CategoryTabs } from './CategoryTabs';
 import { CheckoutScreen } from './CheckoutScreen';
 import { DiscountModal } from './DiscountModal';
 import ItemEditModal from './ItemEditModal';
+import { WeightModal } from './WeightModal';
 import { useProducts } from '../hooks/useProducts';
 import { useCart, CartItem } from '../hooks/useCart';
 import { useApi } from '../context/ApiContext';
+
+interface WeightProduct {
+  id: string;
+  name: string;
+  price: number;
+  pricePerKg: number;
+}
 
 export function POSLayout() {
   const { fetchApi } = useApi();
@@ -20,6 +28,7 @@ export function POSLayout() {
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
   const [vatRate, setVatRate] = useState(10);
   const [currencySymbol, setCurrencySymbol] = useState('$');
+  const [weightProduct, setWeightProduct] = useState<WeightProduct | null>(null);
 
   const cart = useCart(vatRate);
 
@@ -64,13 +73,48 @@ export function POSLayout() {
   };
 
   const handleProductClick = (product: any) => {
-    // For simplicity, add directly. Could show modifier modal here.
-    cart.addItem(
-      { id: product.id, name: product.name, price: product.price },
-      1,
-      [],
-      undefined
-    );
+    // Check if product has pricePerKg - show weight modal
+    if (product.pricePerKg) {
+      setWeightProduct({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        pricePerKg: product.pricePerKg,
+      });
+    } else {
+      // Standard product - add directly
+      cart.addItem(
+        { id: product.id, name: product.name, price: product.price },
+        1,
+        [],
+        undefined
+      );
+    }
+  };
+
+  const handleAddByQuantity = (quantity: number) => {
+    if (weightProduct) {
+      cart.addItem(
+        { id: weightProduct.id, name: weightProduct.name, price: weightProduct.price },
+        quantity,
+        [],
+        undefined
+      );
+      setWeightProduct(null);
+    }
+  };
+
+  const handleAddByWeight = (weightKg: number) => {
+    if (weightProduct) {
+      cart.addItem(
+        { id: weightProduct.id, name: weightProduct.name, price: weightProduct.price },
+        1,
+        [],
+        undefined,
+        { isWeightBased: true, weightKg, pricePerKg: weightProduct.pricePerKg }
+      );
+      setWeightProduct(null);
+    }
   };
 
   const handleCheckout = async (
@@ -290,6 +334,17 @@ export function POSLayout() {
           item={editingItem}
           onSave={cart.updateItem}
           onClose={() => setEditingItem(null)}
+        />
+      )}
+
+      {/* Weight Selection Modal */}
+      {weightProduct && (
+        <WeightModal
+          product={weightProduct}
+          currencySymbol={currencySymbol}
+          onAddByQuantity={handleAddByQuantity}
+          onAddByWeight={handleAddByWeight}
+          onClose={() => setWeightProduct(null)}
         />
       )}
     </div>
