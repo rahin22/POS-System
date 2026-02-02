@@ -111,8 +111,8 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="h-screen bg-gray-100 p-6 overflow-y-auto">
+      <div className="max-w-2xl mx-auto pb-6">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center gap-3 mb-6">
             <Settings className="w-6 h-6" />

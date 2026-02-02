@@ -471,16 +471,9 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Business details (centered)
       addBytes(ESC, 0x61, 0x01);
+      addText('Shop 7a/22 Mawson Pl, Mawson ACT 2607');
       addBytes(LF);
-      addText('Shop 7a/22 Mawson Pl,');
-      addBytes(LF);
-      addText('Mawson ACT 2607');
-      addBytes(LF, LF);
-      addText('ALTAHER LIMITED');
-      addBytes(LF);
-      addText('ABN: 79 689 402 051');
-      addBytes(LF);
-      
+      addText('ALTAHER LIMITED | ABN: 79 689 402 051');
       addBytes(LF);
       
       // Left align
@@ -504,23 +497,19 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Normal size
       addBytes(ESC, 0x21, 0x00);
-      addBytes(LF);
       
       // Left align for details
       addBytes(ESC, 0x61, 0x00);
-      addBytes(ESC, 0x21, 0x10); // 1x size (double height)
       addText(`Date: ${new Date().toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`);
       addBytes(LF);
       if (orderData.customerName && orderData.customerName !== 'Guest') {
         addText(`Customer: ${orderData.customerName}`);
         addBytes(LF);
       }
-      addBytes(ESC, 0x21, 0x00); // Back to normal
       addText('--------------------------------');
       addBytes(LF);
       
-      // Add items with 1x size
-      addBytes(ESC, 0x21, 0x10); // 1x size (double height) for items
+      // Add items at normal size
       if (orderData.items && orderData.items.length > 0) {
         orderData.items.forEach((item: any) => {
           const quantity = item.quantity || 1;
@@ -551,10 +540,8 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
         });
       }
       
-      addBytes(ESC, 0x21, 0x00); // Back to normal
       addText('--------------------------------');
       addBytes(LF);
-      addBytes(ESC, 0x21, 0x10); // 1x size (double height)
       addText(`Subtotal: $${(orderData.subtotal || 0).toFixed(2)}`);
       addBytes(LF);
       addText(`GST: $${(orderData.tax || 0).toFixed(2)}`);
