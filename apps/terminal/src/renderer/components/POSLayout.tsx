@@ -179,20 +179,6 @@ export function POSLayout() {
               paymentMethod: primaryPayment.method,
             });
             console.log('Customer receipt print result:', printResult);
-            
-            // Also print kitchen docket automatically
-            const kitchenResult = await window.electronAPI.printReceipt({
-              orderId: response.data.id,
-              orderNumber: response.data.orderNumber,
-              customerName: response.data.customerName,
-              orderType: orderType,
-              items: response.data.items,
-              subtotal: response.data.subtotal,
-              tax: response.data.tax,
-              total: response.data.total,
-              paymentMethod: 'kitchen', // Mark as kitchen docket
-            });
-            console.log('Kitchen docket print result:', kitchenResult);
           } else {
             console.warn('Electron print API not available - running in browser mode');
           }
