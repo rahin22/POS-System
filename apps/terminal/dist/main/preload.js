@@ -14,6 +14,19 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     selectQrCodeImage: () => electron_1.ipcRenderer.invoke('select-qrcode-image'),
     resetLogo: () => electron_1.ipcRenderer.invoke('reset-logo'),
     resetQrCode: () => electron_1.ipcRenderer.invoke('reset-qrcode'),
+    // Auto-updates
+    checkForUpdates: () => electron_1.ipcRenderer.invoke('check-for-updates'),
+    downloadUpdate: () => electron_1.ipcRenderer.invoke('download-update'),
+    installUpdate: () => electron_1.ipcRenderer.invoke('install-update'),
+    onUpdateAvailable: (callback) => {
+        electron_1.ipcRenderer.on('update-available', (_, info) => callback(info));
+    },
+    onUpdateDownloadProgress: (callback) => {
+        electron_1.ipcRenderer.on('update-download-progress', (_, progress) => callback(progress));
+    },
+    onUpdateDownloaded: (callback) => {
+        electron_1.ipcRenderer.on('update-downloaded', (_, info) => callback(info));
+    },
     // Printing
     printReceipt: (orderData) => electron_1.ipcRenderer.invoke('print-receipt', orderData),
     getPrinters: () => electron_1.ipcRenderer.invoke('get-printers'),

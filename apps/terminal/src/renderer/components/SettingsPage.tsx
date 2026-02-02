@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2 } from 'lucide-react';
+import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2, Download } from 'lucide-react';
 
 export function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -19,6 +19,10 @@ export function SettingsPage() {
   const [vfdStatus, setVfdStatus] = useState<{ connected: boolean }>({ connected: false });
   const [printQueue, setPrintQueue] = useState<Array<{ job: string; user: string; size: string; date: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready'>('idle');
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [newVersion, setNewVersion] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -26,6 +30,8 @@ export function SettingsPage() {
     loadPrintQueue();
     loadSerialPorts();
     loadVfdStatus();
+    loadAppInfo();
+    setupUpdateListeners();
   }, []);
 
   const loadSettings = async () => {
@@ -57,6 +63,56 @@ export function SettingsPage() {
     if (window.electronAPI?.vfd?.status) {
       const status = await window.electronAPI.vfd.status();
       setVfdStatus(status);
+    }
+  };
+
+  const loadAppInfo = async () => {
+    if (window.electronAPI?.getAppInfo) {
+      const info = await window.electronAPI.getAppInfo();
+      setAppVersion(info.version);
+    }
+  };
+
+  const setupUpdateListeners = () => {
+    if (window.electronAPI?.onUpdateAvailable) {
+      window.electronAPI.onUpdateAvailable((info) => {
+        setUpdateStatus('available');
+        setNewVersion(info.version);
+      });
+    }
+    if (window.electronAPI?.onUpdateDownloadProgress) {
+      window.electronAPI.onUpdateDownloadProgress((progress) => {
+        setUpdateStatus('downloading');
+        setUpdateProgress(progress.percent);
+      });
+    }
+    if (window.electronAPI?.onUpdateDownloaded) {
+      window.electronAPI.onUpdateDownloaded((info) => {
+        setUpdateStatus('ready');
+        setNewVersion(info.version);
+      });
+    }
+  };
+
+  const checkForUpdates = async () => {
+    if (window.electronAPI?.checkForUpdates) {
+      setUpdateStatus('checking');
+      const result = await window.electronAPI.checkForUpdates();
+      if (!result.success) {
+        setUpdateStatus('idle');
+        if (result.message) {
+          alert(result.message);
+        }
+      } else if (!result.updateInfo?.version || result.updateInfo.version === appVersion) {
+        setUpdateStatus('idle');
+        alert('You are running the latest version!');
+      }
+    }
+  };
+
+  const installUpdate = () => {
+    if (window.electronAPI?.installUpdate) {
+      window.electronAPI.installUpdate();
     }
   };
 
@@ -449,6 +505,72 @@ export function SettingsPage() {
                   PNG image recommended, 200x200px
                 </p>
               </div>
+            </div>
+
+            {/* Updates Section */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-4">
+                <Download className="w-5 h-5 text-gray-600" />
+                <h2 className="text-lg font-semibold">Software Updates</h2>
+              </div>
+
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Current Version</p>
+                  <p className="text-lg font-bold text-primary-600">v{appVersion || '...'}</p>
+                </div>
+                
+                {updateStatus === 'idle' && (
+                  <button
+                    onClick={checkForUpdates}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Check for Updates
+                  </button>
+                )}
+                
+                {updateStatus === 'checking' && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Checking...
+                  </div>
+                )}
+                
+                {updateStatus === 'available' && (
+                  <div className="text-right">
+                    <p className="text-sm text-green-600 mb-1">v{newVersion} available!</p>
+                    <p className="text-xs text-gray-500">Download will start automatically</p>
+                  </div>
+                )}
+                
+                {updateStatus === 'downloading' && (
+                  <div className="flex-1 max-w-xs ml-4">
+                    <p className="text-sm text-gray-600 mb-1">Downloading v{newVersion}...</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        style={{ width: `${updateProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{updateProgress.toFixed(0)}%</p>
+                  </div>
+                )}
+                
+                {updateStatus === 'ready' && (
+                  <button
+                    onClick={installUpdate}
+                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Install v{newVersion} & Restart
+                  </button>
+                )}
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                Updates are downloaded in the background. The app will restart to apply updates.
+              </p>
             </div>
 
             {/* Save Button */}

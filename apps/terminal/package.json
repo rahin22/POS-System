@@ -1,12 +1,16 @@
 {
   "name": "kebabpos-terminal",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Electron POS Terminal for Kebab Shop",
   "main": "dist/main/index.js",
-  "homepage": "https://github.com/yourusername/kebab-pos",
+  "homepage": "https://github.com/rahin22/POS-System",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rahin22/POS-System.git"
+  },
   "author": {
-    "name": "Your Name",
-    "email": "your.email@example.com"
+    "name": "Rahin",
+    "email": "rahin22@github.com"
   },
   "scripts": {
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
@@ -19,13 +23,21 @@
     "package": "electron-builder",
     "package:linux": "electron-builder --linux",
     "package:win": "electron-builder --win",
-    "package:mac": "electron-builder --mac"
+    "package:mac": "electron-builder --mac",
+    "release": "electron-builder --linux --publish always",
+    "release:win": "electron-builder --win --publish always",
+    "release:mac": "electron-builder --mac --publish always"
   },
   "build": {
     "appId": "com.kebabpos.terminal",
     "productName": "KebabPOS",
     "directories": {
       "output": "release"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "rahin22",
+      "repo": "POS-System"
     },
     "files": [
       "dist/**/*"
@@ -43,7 +55,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "category": "public.app-category.business",
@@ -67,6 +81,7 @@
   "dependencies": {
     "@kebab-pos/shared": "*",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.7.3",
     "escpos": "^3.0.0-alpha.6",
     "escpos-network": "^3.0.0-alpha.4",
     "escpos-usb": "^3.0.0-alpha.4",

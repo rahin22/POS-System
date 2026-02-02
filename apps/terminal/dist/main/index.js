@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
+const electron_updater_1 = require("electron-updater");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const electron_store_1 = __importDefault(require("electron-store"));
@@ -116,9 +117,94 @@ function toggleKioskMode() {
     mainWindow.setFullScreen(!isFullScreen);
     mainWindow.setKiosk(!isFullScreen);
 }
+// Auto-updater setup
+function setupAutoUpdater() {
+    // Configure auto-updater
+    electron_updater_1.autoUpdater.autoDownload = false; // Don't auto-download, let user decide
+    electron_updater_1.autoUpdater.autoInstallOnAppQuit = true;
+    // Check for updates on startup
+    electron_updater_1.autoUpdater.checkForUpdates().catch(err => {
+        console.log('Update check failed:', err.message);
+    });
+    // Check for updates every 4 hours
+    setInterval(() => {
+        electron_updater_1.autoUpdater.checkForUpdates().catch(err => {
+            console.log('Update check failed:', err.message);
+        });
+    }, 4 * 60 * 60 * 1000);
+    // Update available
+    electron_updater_1.autoUpdater.on('update-available', (info) => {
+        console.log('Update available:', info.version);
+        if (mainWindow) {
+            mainWindow.webContents.send('update-available', {
+                version: info.version,
+                releaseNotes: info.releaseNotes,
+            });
+        }
+        // Show dialog asking user if they want to download
+        electron_1.dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Update Available',
+            message: `A new version (${info.version}) is available!`,
+            detail: 'Would you like to download it now? The update will be installed when you restart the app.',
+            buttons: ['Download', 'Later'],
+            defaultId: 0,
+        }).then(({ response }) => {
+            if (response === 0) {
+                electron_updater_1.autoUpdater.downloadUpdate();
+            }
+        });
+    });
+    // No update available
+    electron_updater_1.autoUpdater.on('update-not-available', () => {
+        console.log('App is up to date');
+    });
+    // Download progress
+    electron_updater_1.autoUpdater.on('download-progress', (progress) => {
+        console.log(`Download progress: ${progress.percent.toFixed(1)}%`);
+        if (mainWindow) {
+            mainWindow.webContents.send('update-download-progress', {
+                percent: progress.percent,
+                bytesPerSecond: progress.bytesPerSecond,
+                total: progress.total,
+                transferred: progress.transferred,
+            });
+        }
+    });
+    // Update downloaded
+    electron_updater_1.autoUpdater.on('update-downloaded', (info) => {
+        console.log('Update downloaded:', info.version);
+        if (mainWindow) {
+            mainWindow.webContents.send('update-downloaded', {
+                version: info.version,
+            });
+        }
+        // Ask user to restart
+        electron_1.dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Update Ready',
+            message: 'Update downloaded!',
+            detail: 'The update has been downloaded. Restart now to install it?',
+            buttons: ['Restart Now', 'Later'],
+            defaultId: 0,
+        }).then(({ response }) => {
+            if (response === 0) {
+                electron_updater_1.autoUpdater.quitAndInstall(false, true);
+            }
+        });
+    });
+    // Error handling
+    electron_updater_1.autoUpdater.on('error', (err) => {
+        console.error('Auto-updater error:', err.message);
+    });
+}
 // App lifecycle
 electron_1.app.whenReady().then(() => {
     createWindow();
+    // Setup auto-updater (only in production)
+    if (electron_1.app.isPackaged) {
+        setupAutoUpdater();
+    }
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0) {
             createWindow();
@@ -160,6 +246,31 @@ electron_1.ipcMain.handle('get-app-info', () => {
         platform: process.platform,
         arch: process.arch,
     };
+});
+// Update-related IPC handlers
+electron_1.ipcMain.handle('check-for-updates', async () => {
+    if (!electron_1.app.isPackaged) {
+        return { success: false, message: 'Updates only available in production' };
+    }
+    try {
+        const result = await electron_updater_1.autoUpdater.checkForUpdates();
+        return { success: true, updateInfo: result?.updateInfo };
+    }
+    catch (err) {
+        return { success: false, message: err.message };
+    }
+});
+electron_1.ipcMain.handle('download-update', async () => {
+    try {
+        await electron_updater_1.autoUpdater.downloadUpdate();
+        return { success: true };
+    }
+    catch (err) {
+        return { success: false, message: err.message };
+    }
+});
+electron_1.ipcMain.handle('install-update', () => {
+    electron_updater_1.autoUpdater.quitAndInstall(false, true);
 });
 // Select custom logo image
 electron_1.ipcMain.handle('select-logo-image', async () => {

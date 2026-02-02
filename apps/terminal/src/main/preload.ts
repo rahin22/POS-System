@@ -16,6 +16,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resetLogo: () => ipcRenderer.invoke('reset-logo'),
   resetQrCode: () => ipcRenderer.invoke('reset-qrcode'),
   
+  // Auto-updates
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateAvailable: (callback: (info: any) => void) => {
+    ipcRenderer.on('update-available', (_, info) => callback(info));
+  },
+  onUpdateDownloadProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on('update-download-progress', (_, progress) => callback(progress));
+  },
+  onUpdateDownloaded: (callback: (info: any) => void) => {
+    ipcRenderer.on('update-downloaded', (_, info) => callback(info));
+  },
+  
   // Printing
   printReceipt: (orderData: any) => ipcRenderer.invoke('print-receipt', orderData),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
@@ -60,6 +74,12 @@ declare global {
       selectQrCodeImage: () => Promise<{ success: boolean; path?: string }>;
       resetLogo: () => Promise<{ success: boolean }>;
       resetQrCode: () => Promise<{ success: boolean }>;
+      checkForUpdates: () => Promise<{ success: boolean; updateInfo?: any; message?: string }>;
+      downloadUpdate: () => Promise<{ success: boolean; message?: string }>;
+      installUpdate: () => void;
+      onUpdateAvailable: (callback: (info: { version: string; releaseNotes?: string }) => void) => void;
+      onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; total: number; transferred: number }) => void) => void;
+      onUpdateDownloaded: (callback: (info: { version: string }) => void) => void;
       printReceipt: (orderData: any) => Promise<{ success: boolean; error?: string }>;
       getPrinters: () => Promise<{ success: boolean; printers: string[]; error?: string }>;
       getPrintQueue: () => Promise<{ success: boolean; jobs: Array<{ job: string; user: string; size: string; date: string }>; error?: string }>;
