@@ -35,8 +35,35 @@ prisma.$connect().then(() => {
 const app = express();
 
 // Middleware
+// Allow broader CORS for mobile apps - authentication still required
 app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [
+      'http://localhost:3000', 
+      'http://localhost:3002', 
+      'http://localhost:3003', 
+      'http://localhost:3004', 
+      'http://localhost:3005',
+      'http://localhost:5173', // Android app dev server
+      'capacitor://localhost', // Capacitor Android app
+      'http://localhost', // Capacitor Android (newer versions)
+      'ionic://localhost', // Ionic Capacitor
+    ];
+    
+    // Allow any localhost or 192.168.x.x origin for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1') || /192\.168\.\d+\.\d+/.test(origin)) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(express.json());
