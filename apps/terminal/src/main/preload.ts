@@ -10,6 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   
+  // Custom receipt assets
+  selectLogoImage: () => ipcRenderer.invoke('select-logo-image'),
+  selectQrCodeImage: () => ipcRenderer.invoke('select-qrcode-image'),
+  resetLogo: () => ipcRenderer.invoke('reset-logo'),
+  resetQrCode: () => ipcRenderer.invoke('reset-qrcode'),
+  
   // Printing
   printReceipt: (orderData: any) => ipcRenderer.invoke('print-receipt', orderData),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
@@ -40,6 +46,8 @@ declare global {
         vfdEnabled: boolean;
         vfdPort: string;
         vfdBaudRate: number;
+        customLogoPath: string;
+        customQrCodePath: string;
       }>;
       setSettings: (settings: Record<string, any>) => Promise<boolean>;
       toggleFullscreen: () => Promise<boolean>;
@@ -48,6 +56,10 @@ declare global {
         platform: string;
         arch: string;
       }>;
+      selectLogoImage: () => Promise<{ success: boolean; path?: string }>;
+      selectQrCodeImage: () => Promise<{ success: boolean; path?: string }>;
+      resetLogo: () => Promise<{ success: boolean }>;
+      resetQrCode: () => Promise<{ success: boolean }>;
       printReceipt: (orderData: any) => Promise<{ success: boolean; error?: string }>;
       getPrinters: () => Promise<{ success: boolean; printers: string[]; error?: string }>;
       getPrintQueue: () => Promise<{ success: boolean; jobs: Array<{ job: string; user: string; size: string; date: string }>; error?: string }>;

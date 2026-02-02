@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import Store from 'electron-store';
@@ -14,6 +14,8 @@ const store = new Store({
     vfdEnabled: false,
     vfdPort: '/dev/ttyUSB0',
     vfdBaudRate: 9600,
+    customLogoPath: '', // Empty means use default
+    customQrCodePath: '', // Empty means use default
   },
 });
 
@@ -111,6 +113,8 @@ ipcMain.handle('get-settings', () => {
     vfdEnabled: store.get('vfdEnabled'),
     vfdPort: store.get('vfdPort'),
     vfdBaudRate: store.get('vfdBaudRate'),
+    customLogoPath: store.get('customLogoPath'),
+    customQrCodePath: store.get('customQrCodePath'),
   };
 });
 
@@ -132,6 +136,76 @@ ipcMain.handle('get-app-info', () => {
     platform: process.platform,
     arch: process.arch,
   };
+});
+
+// Select custom logo image
+ipcMain.handle('select-logo-image', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Select Logo Image',
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp'] }],
+    properties: ['openFile'],
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    const selectedPath = result.filePaths[0];
+    // Copy to app data folder for persistence
+    const userDataPath = app.getPath('userData');
+    const customAssetsPath = path.join(userDataPath, 'custom-assets');
+    if (!fs.existsSync(customAssetsPath)) {
+      fs.mkdirSync(customAssetsPath, { recursive: true });
+    }
+    const destPath = path.join(customAssetsPath, 'custom-logo.png');
+    fs.copyFileSync(selectedPath, destPath);
+    store.set('customLogoPath', destPath);
+    return { success: true, path: destPath };
+  }
+  return { success: false };
+});
+
+// Select custom QR code image
+ipcMain.handle('select-qrcode-image', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Select QR Code Image',
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp'] }],
+    properties: ['openFile'],
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    const selectedPath = result.filePaths[0];
+    // Copy to app data folder for persistence
+    const userDataPath = app.getPath('userData');
+    const customAssetsPath = path.join(userDataPath, 'custom-assets');
+    if (!fs.existsSync(customAssetsPath)) {
+      fs.mkdirSync(customAssetsPath, { recursive: true });
+    }
+    const destPath = path.join(customAssetsPath, 'custom-qrcode.png');
+    fs.copyFileSync(selectedPath, destPath);
+    store.set('customQrCodePath', destPath);
+    return { success: true, path: destPath };
+  }
+  return { success: false };
+});
+
+// Reset to default logo
+ipcMain.handle('reset-logo', () => {
+  store.set('customLogoPath', '');
+  const userDataPath = app.getPath('userData');
+  const customLogoPath = path.join(userDataPath, 'custom-assets', 'custom-logo.png');
+  if (fs.existsSync(customLogoPath)) {
+    fs.unlinkSync(customLogoPath);
+  }
+  return { success: true };
+});
+
+// Reset to default QR code
+ipcMain.handle('reset-qrcode', () => {
+  store.set('customQrCodePath', '');
+  const userDataPath = app.getPath('userData');
+  const customQrPath = path.join(userDataPath, 'custom-assets', 'custom-qrcode.png');
+  if (fs.existsSync(customQrPath)) {
+    fs.unlinkSync(customQrPath);
+  }
+  return { success: true };
 });
 
 // Get list of available printers from CUPS
@@ -327,10 +401,16 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
     } else {
       // CUSTOMER RECEIPT FORMAT
       
-      // Try to print logo image
-      const logoPath = app.isPackaged 
-        ? path.join(process.resourcesPath, 'assets', 'logo.png')
-        : path.join(__dirname, '../../assets/logo.png');
+      // Determine logo path - use custom if set, otherwise default
+      const customLogoPath = store.get('customLogoPath') as string;
+      let logoPath: string;
+      if (customLogoPath && fs.existsSync(customLogoPath)) {
+        logoPath = customLogoPath;
+      } else {
+        logoPath = app.isPackaged 
+          ? path.join(process.resourcesPath, 'assets', 'logo.png')
+          : path.join(__dirname, '../../assets/logo.png');
+      }
       
       if (fs.existsSync(logoPath)) {
         try {
@@ -391,7 +471,6 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Business details (centered)
       addBytes(ESC, 0x61, 0x01);
-      addBytes(ESC, 0x21, 0x11); // 2x size
       addBytes(LF);
       addText('Shop 7a/22 Mawson Pl,');
       addBytes(LF);
@@ -401,7 +480,6 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
       addText('ABN: 79 689 402 051');
       addBytes(LF);
-      addBytes(ESC, 0x21, 0x00); // Back to normal
       
       addBytes(LF);
       
@@ -430,18 +508,19 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Left align for details
       addBytes(ESC, 0x61, 0x00);
-      addBytes(ESC, 0x21, 0x11); // 2x size
+      addBytes(ESC, 0x21, 0x10); // 1x size (double height)
       addText(`Date: ${new Date().toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`);
       addBytes(LF);
       if (orderData.customerName && orderData.customerName !== 'Guest') {
         addText(`Customer: ${orderData.customerName}`);
         addBytes(LF);
       }
+      addBytes(ESC, 0x21, 0x00); // Back to normal
       addText('--------------------------------');
       addBytes(LF);
       
-      // Add items with 2x size
-      addBytes(ESC, 0x21, 0x11); // 2x size for items
+      // Add items with 1x size
+      addBytes(ESC, 0x21, 0x10); // 1x size (double height) for items
       if (orderData.items && orderData.items.length > 0) {
         orderData.items.forEach((item: any) => {
           const quantity = item.quantity || 1;
@@ -472,8 +551,10 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
         });
       }
       
+      addBytes(ESC, 0x21, 0x00); // Back to normal
       addText('--------------------------------');
       addBytes(LF);
+      addBytes(ESC, 0x21, 0x10); // 1x size (double height)
       addText(`Subtotal: $${(orderData.subtotal || 0).toFixed(2)}`);
       addBytes(LF);
       addText(`GST: $${(orderData.tax || 0).toFixed(2)}`);
@@ -483,7 +564,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(ESC, 0x21, 0x30); // 3x size (double width and height)
       addText(`TOTAL: $${(orderData.total || 0).toFixed(2)}`);
       addBytes(LF);
-      addBytes(ESC, 0x21, 0x11); // Back to 2x size
+      addBytes(ESC, 0x21, 0x00); // Back to normal
       
       addText('--------------------------------');
       addBytes(LF);
@@ -499,12 +580,17 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
       addText('See you again soon');
       addBytes(LF, LF);
-      addBytes(ESC, 0x21, 0x00); // Back to normal for QR text
       
-      // Print Review QR Code
-      const reviewQrPath = app.isPackaged 
-        ? path.join(process.resourcesPath, 'assets', 'review_qrcode.png')
-        : path.join(__dirname, '../../assets/review_qrcode.png');
+      // Determine QR code path - use custom if set, otherwise default
+      const customQrCodePath = store.get('customQrCodePath') as string;
+      let reviewQrPath: string;
+      if (customQrCodePath && fs.existsSync(customQrCodePath)) {
+        reviewQrPath = customQrCodePath;
+      } else {
+        reviewQrPath = app.isPackaged 
+          ? path.join(process.resourcesPath, 'assets', 'review_qrcode.png')
+          : path.join(__dirname, '../../assets/review_qrcode.png');
+      }
       
       try {
         const escpos = require('escpos');
@@ -519,12 +605,10 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
             });
           });
           
-          addBytes(ESC, 0x21, 0x11); // 2x size for QR text
           addText('If you enjoyed your meal,');
           addBytes(LF);
           addText("we'd love a review!");
           addBytes(LF);
-          addBytes(ESC, 0x21, 0x00); // Back to normal for image
           
           const reviewRaster = reviewImage.toRaster();
           const rxL = reviewRaster.width & 0xFF;

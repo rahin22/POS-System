@@ -9,6 +9,11 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     // App control
     toggleFullscreen: () => electron_1.ipcRenderer.invoke('toggle-fullscreen'),
     getAppInfo: () => electron_1.ipcRenderer.invoke('get-app-info'),
+    // Custom receipt assets
+    selectLogoImage: () => electron_1.ipcRenderer.invoke('select-logo-image'),
+    selectQrCodeImage: () => electron_1.ipcRenderer.invoke('select-qrcode-image'),
+    resetLogo: () => electron_1.ipcRenderer.invoke('reset-logo'),
+    resetQrCode: () => electron_1.ipcRenderer.invoke('reset-qrcode'),
     // Printing
     printReceipt: (orderData) => electron_1.ipcRenderer.invoke('print-receipt', orderData),
     getPrinters: () => electron_1.ipcRenderer.invoke('get-printers'),

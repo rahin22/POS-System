@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, RefreshCw, Monitor } from 'lucide-react';
+import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2 } from 'lucide-react';
 
 export function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -10,6 +10,8 @@ export function SettingsPage() {
     vfdEnabled: false,
     vfdPort: '/dev/ttyUSB0',
     vfdBaudRate: 9600,
+    customLogoPath: '',
+    customQrCodePath: '',
   });
   const [saved, setSaved] = useState(false);
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
@@ -352,6 +354,100 @@ export function SettingsPage() {
                     Connect VFD
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Receipt Customization Section */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-4">
+                <Image className="w-5 h-5 text-gray-600" />
+                <h2 className="text-lg font-semibold">Receipt Customization</h2>
+              </div>
+
+              {/* Custom Logo */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Receipt Logo
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-600 truncate">
+                    {settings.customLogoPath ? settings.customLogoPath.split('/').pop() || settings.customLogoPath.split('\\').pop() : 'Using default Al Taher logo'}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (window.electronAPI?.selectLogoImage) {
+                        const result = await window.electronAPI.selectLogoImage();
+                        if (result.success && result.path) {
+                          setSettings({ ...settings, customLogoPath: result.path });
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                  >
+                    <Image className="w-4 h-4" />
+                    Select
+                  </button>
+                  {settings.customLogoPath && (
+                    <button
+                      onClick={async () => {
+                        if (window.electronAPI?.resetLogo) {
+                          await window.electronAPI.resetLogo();
+                          setSettings({ ...settings, customLogoPath: '' });
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                      title="Reset to default"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  PNG image recommended, 200-300px width
+                </p>
+              </div>
+
+              {/* Custom QR Code */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Receipt QR Code
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-600 truncate">
+                    {settings.customQrCodePath ? settings.customQrCodePath.split('/').pop() || settings.customQrCodePath.split('\\').pop() : 'Using default review QR code'}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (window.electronAPI?.selectQrCodeImage) {
+                        const result = await window.electronAPI.selectQrCodeImage();
+                        if (result.success && result.path) {
+                          setSettings({ ...settings, customQrCodePath: result.path });
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                  >
+                    <QrCode className="w-4 h-4" />
+                    Select
+                  </button>
+                  {settings.customQrCodePath && (
+                    <button
+                      onClick={async () => {
+                        if (window.electronAPI?.resetQrCode) {
+                          await window.electronAPI.resetQrCode();
+                          setSettings({ ...settings, customQrCodePath: '' });
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                      title="Reset to default"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  PNG image recommended, 200x200px
+                </p>
               </div>
             </div>
 
