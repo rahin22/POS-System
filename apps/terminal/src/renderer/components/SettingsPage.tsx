@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2, Download } from 'lucide-react';
 
+// Type for the update-related electron API (extends the base types)
+interface ElectronUpdateAPI {
+  checkForUpdates?: () => Promise<{ success: boolean; updateInfo?: any; message?: string }>;
+  downloadUpdate?: () => Promise<{ success: boolean; message?: string }>;
+  installUpdate?: () => void;
+  onUpdateAvailable?: (callback: (info: { version: string; releaseNotes?: string }) => void) => void;
+  onUpdateDownloadProgress?: (callback: (progress: { percent: number }) => void) => void;
+  onUpdateDownloaded?: (callback: (info: { version: string }) => void) => void;
+}
+
 export function SettingsPage() {
   const [settings, setSettings] = useState({
     apiUrl: '',
@@ -74,20 +84,21 @@ export function SettingsPage() {
   };
 
   const setupUpdateListeners = () => {
-    if (window.electronAPI?.onUpdateAvailable) {
-      window.electronAPI.onUpdateAvailable((info) => {
+    const api = window.electronAPI as ElectronUpdateAPI | undefined;
+    if (api?.onUpdateAvailable) {
+      api.onUpdateAvailable((info) => {
         setUpdateStatus('available');
         setNewVersion(info.version);
       });
     }
-    if (window.electronAPI?.onUpdateDownloadProgress) {
-      window.electronAPI.onUpdateDownloadProgress((progress) => {
+    if (api?.onUpdateDownloadProgress) {
+      api.onUpdateDownloadProgress((progress) => {
         setUpdateStatus('downloading');
         setUpdateProgress(progress.percent);
       });
     }
-    if (window.electronAPI?.onUpdateDownloaded) {
-      window.electronAPI.onUpdateDownloaded((info) => {
+    if (api?.onUpdateDownloaded) {
+      api.onUpdateDownloaded((info) => {
         setUpdateStatus('ready');
         setNewVersion(info.version);
       });
@@ -95,9 +106,10 @@ export function SettingsPage() {
   };
 
   const checkForUpdates = async () => {
-    if (window.electronAPI?.checkForUpdates) {
+    const api = window.electronAPI as ElectronUpdateAPI | undefined;
+    if (api?.checkForUpdates) {
       setUpdateStatus('checking');
-      const result = await window.electronAPI.checkForUpdates();
+      const result = await api.checkForUpdates();
       if (!result.success) {
         setUpdateStatus('idle');
         if (result.message) {
@@ -111,8 +123,9 @@ export function SettingsPage() {
   };
 
   const installUpdate = () => {
-    if (window.electronAPI?.installUpdate) {
-      window.electronAPI.installUpdate();
+    const api = window.electronAPI as ElectronUpdateAPI | undefined;
+    if (api?.installUpdate) {
+      api.installUpdate();
     }
   };
 
