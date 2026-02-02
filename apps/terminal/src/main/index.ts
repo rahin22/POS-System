@@ -389,6 +389,18 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
         addBytes(LF);
       }
       
+      // Business details (centered)
+      addBytes(ESC, 0x61, 0x01);
+      addBytes(LF);
+      addText('Shop 7a/22 Mawson Pl,');
+      addBytes(LF);
+      addText('Mawson ACT 2607');
+      addBytes(LF, LF);
+      addText('ALTAHER Proprietary Limited');
+      addBytes(LF);
+      addText('ABN: 79 689 402 051');
+      addBytes(LF);
+      
       addBytes(LF);
       
       // Left align
@@ -482,7 +494,77 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addText('Thank you for your order!');
       addBytes(LF);
       addText('See you again soon');
-      addBytes(LF);
+      addBytes(LF, LF);
+      
+      // Print QR codes
+      const reviewQrPath = app.isPackaged 
+        ? path.join(process.resourcesPath, 'assets', 'review_qrcode.png')
+        : path.join(__dirname, '../../assets/review_qrcode.png');
+      
+      const menuQrPath = app.isPackaged 
+        ? path.join(process.resourcesPath, 'assets', 'menu_qrcode.png')
+        : path.join(__dirname, '../../assets/menu_qrcode.png');
+      
+      try {
+        const escpos = require('escpos');
+        const Image = require('escpos').Image;
+        
+        // Print Review QR Code
+        if (fs.existsSync(reviewQrPath)) {
+          const reviewImage = await new Promise<any>((resolve, reject) => {
+            Image.load(reviewQrPath, (img: any) => {
+              if (img) resolve(img);
+              else reject(new Error('Failed to load review QR'));
+            });
+          });
+          
+          addText('If you enjoyed your meal,');
+          addBytes(LF);
+          addText("we'd love a review!");
+          addBytes(LF);
+          
+          const reviewRaster = reviewImage.toRaster();
+          const rxL = reviewRaster.width & 0xFF;
+          const rxH = (reviewRaster.width >> 8) & 0xFF;
+          const ryL = reviewRaster.height & 0xFF;
+          const ryH = (reviewRaster.height >> 8) & 0xFF;
+          
+          addBytes(GS, 0x76, 0x30, 0x00, rxL, rxH, ryL, ryH);
+          for (let i = 0; i < reviewRaster.data.length; i++) {
+            commands.push(reviewRaster.data[i]);
+          }
+          addBytes(LF, LF);
+        }
+        
+        // Print Menu QR Code
+        if (fs.existsSync(menuQrPath)) {
+          const menuImage = await new Promise<any>((resolve, reject) => {
+            Image.load(menuQrPath, (img: any) => {
+              if (img) resolve(img);
+              else reject(new Error('Failed to load menu QR'));
+            });
+          });
+          
+          addText('Scan to view our');
+          addBytes(LF);
+          addText('full menu online:');
+          addBytes(LF);
+          
+          const menuRaster = menuImage.toRaster();
+          const mxL = menuRaster.width & 0xFF;
+          const mxH = (menuRaster.width >> 8) & 0xFF;
+          const myL = menuRaster.height & 0xFF;
+          const myH = (menuRaster.height >> 8) & 0xFF;
+          
+          addBytes(GS, 0x76, 0x30, 0x00, mxL, mxH, myL, myH);
+          for (let i = 0; i < menuRaster.data.length; i++) {
+            commands.push(menuRaster.data[i]);
+          }
+          addBytes(LF);
+        }
+      } catch (qrError) {
+        console.log('Could not print QR codes:', qrError);
+      }
     }
     
     // Feed and cut - extra lines for tear-off
