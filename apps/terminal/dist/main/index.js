@@ -384,6 +384,7 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             }
             // Business details (centered)
             addBytes(ESC, 0x61, 0x01);
+            addBytes(ESC, 0x21, 0x11); // 2x size
             addBytes(LF);
             addText('Shop 7a/22 Mawson Pl,');
             addBytes(LF);
@@ -393,6 +394,7 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             addBytes(LF);
             addText('ABN: 79 689 402 051');
             addBytes(LF);
+            addBytes(ESC, 0x21, 0x00); // Back to normal
             addBytes(LF);
             // Left align
             addBytes(ESC, 0x61, 0x00);
@@ -414,6 +416,7 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             addBytes(LF);
             // Left align for details
             addBytes(ESC, 0x61, 0x00);
+            addBytes(ESC, 0x21, 0x11); // 2x size
             addText(`Date: ${new Date().toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`);
             addBytes(LF);
             if (orderData.customerName && orderData.customerName !== 'Guest') {
@@ -422,7 +425,8 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             }
             addText('--------------------------------');
             addBytes(LF);
-            // Add items
+            // Add items with 2x size
+            addBytes(ESC, 0x21, 0x11); // 2x size for items
             if (orderData.items && orderData.items.length > 0) {
                 orderData.items.forEach((item) => {
                     const quantity = item.quantity || 1;
@@ -457,10 +461,10 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             addText(`GST: $${(orderData.tax || 0).toFixed(2)}`);
             addBytes(LF);
             // Bold and larger total
-            addBytes(ESC, 0x21, 0x18); // Bold + double height
+            addBytes(ESC, 0x21, 0x30); // 3x size (double width and height)
             addText(`TOTAL: $${(orderData.total || 0).toFixed(2)}`);
             addBytes(LF);
-            addBytes(ESC, 0x21, 0x00); // Normal
+            addBytes(ESC, 0x21, 0x11); // Back to 2x size
             addText('--------------------------------');
             addBytes(LF);
             // Payment method
@@ -473,6 +477,7 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             addBytes(LF);
             addText('See you again soon');
             addBytes(LF, LF);
+            addBytes(ESC, 0x21, 0x00); // Back to normal for QR text
             // Print Review QR Code
             const reviewQrPath = electron_1.app.isPackaged
                 ? path.join(process.resourcesPath, 'assets', 'review_qrcode.png')
@@ -490,10 +495,12 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
                                 reject(new Error('Failed to load review QR'));
                         });
                     });
+                    addBytes(ESC, 0x21, 0x11); // 2x size for QR text
                     addText('If you enjoyed your meal,');
                     addBytes(LF);
                     addText("we'd love a review!");
                     addBytes(LF);
+                    addBytes(ESC, 0x21, 0x00); // Back to normal for image
                     const reviewRaster = reviewImage.toRaster();
                     const rxL = reviewRaster.width & 0xFF;
                     const rxH = (reviewRaster.width >> 8) & 0xFF;

@@ -391,6 +391,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Business details (centered)
       addBytes(ESC, 0x61, 0x01);
+      addBytes(ESC, 0x21, 0x11); // 2x size
       addBytes(LF);
       addText('Shop 7a/22 Mawson Pl,');
       addBytes(LF);
@@ -400,6 +401,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
       addText('ABN: 79 689 402 051');
       addBytes(LF);
+      addBytes(ESC, 0x21, 0x00); // Back to normal
       
       addBytes(LF);
       
@@ -428,6 +430,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       // Left align for details
       addBytes(ESC, 0x61, 0x00);
+      addBytes(ESC, 0x21, 0x11); // 2x size
       addText(`Date: ${new Date().toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`);
       addBytes(LF);
       if (orderData.customerName && orderData.customerName !== 'Guest') {
@@ -437,7 +440,8 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addText('--------------------------------');
       addBytes(LF);
       
-      // Add items
+      // Add items with 2x size
+      addBytes(ESC, 0x21, 0x11); // 2x size for items
       if (orderData.items && orderData.items.length > 0) {
         orderData.items.forEach((item: any) => {
           const quantity = item.quantity || 1;
@@ -476,10 +480,10 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
       
       // Bold and larger total
-      addBytes(ESC, 0x21, 0x18); // Bold + double height
+      addBytes(ESC, 0x21, 0x30); // 3x size (double width and height)
       addText(`TOTAL: $${(orderData.total || 0).toFixed(2)}`);
       addBytes(LF);
-      addBytes(ESC, 0x21, 0x00); // Normal
+      addBytes(ESC, 0x21, 0x11); // Back to 2x size
       
       addText('--------------------------------');
       addBytes(LF);
@@ -495,6 +499,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
       addText('See you again soon');
       addBytes(LF, LF);
+      addBytes(ESC, 0x21, 0x00); // Back to normal for QR text
       
       // Print Review QR Code
       const reviewQrPath = app.isPackaged 
@@ -514,10 +519,12 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
             });
           });
           
+          addBytes(ESC, 0x21, 0x11); // 2x size for QR text
           addText('If you enjoyed your meal,');
           addBytes(LF);
           addText("we'd love a review!");
           addBytes(LF);
+          addBytes(ESC, 0x21, 0x00); // Back to normal for image
           
           const reviewRaster = reviewImage.toRaster();
           const rxL = reviewRaster.width & 0xFF;
