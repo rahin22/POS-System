@@ -496,14 +496,10 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addText('See you again soon');
       addBytes(LF, LF);
       
-      // Print QR codes
+      // Print Review QR Code
       const reviewQrPath = app.isPackaged 
         ? path.join(process.resourcesPath, 'assets', 'review_qrcode.png')
         : path.join(__dirname, '../../assets/review_qrcode.png');
-      
-      const menuQrPath = app.isPackaged 
-        ? path.join(process.resourcesPath, 'assets', 'menu_qrcode.png')
-        : path.join(__dirname, '../../assets/menu_qrcode.png');
       
       try {
         const escpos = require('escpos');
@@ -533,37 +529,10 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
           for (let i = 0; i < reviewRaster.data.length; i++) {
             commands.push(reviewRaster.data[i]);
           }
-          addBytes(LF, LF);
-        }
-        
-        // Print Menu QR Code
-        if (fs.existsSync(menuQrPath)) {
-          const menuImage = await new Promise<any>((resolve, reject) => {
-            Image.load(menuQrPath, (img: any) => {
-              if (img) resolve(img);
-              else reject(new Error('Failed to load menu QR'));
-            });
-          });
-          
-          addText('Scan to view our');
-          addBytes(LF);
-          addText('full menu online:');
-          addBytes(LF);
-          
-          const menuRaster = menuImage.toRaster();
-          const mxL = menuRaster.width & 0xFF;
-          const mxH = (menuRaster.width >> 8) & 0xFF;
-          const myL = menuRaster.height & 0xFF;
-          const myH = (menuRaster.height >> 8) & 0xFF;
-          
-          addBytes(GS, 0x76, 0x30, 0x00, mxL, mxH, myL, myH);
-          for (let i = 0; i < menuRaster.data.length; i++) {
-            commands.push(menuRaster.data[i]);
-          }
           addBytes(LF);
         }
       } catch (qrError) {
-        console.log('Could not print QR codes:', qrError);
+        console.log('Could not print QR code:', qrError);
       }
     }
     
