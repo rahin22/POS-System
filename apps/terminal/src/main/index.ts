@@ -396,7 +396,7 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addBytes(LF);
       addText('Mawson ACT 2607');
       addBytes(LF, LF);
-      addText('ALTAHER Proprietary Limited');
+      addText('ALTAHER LIMITED');
       addBytes(LF);
       addText('ABN: 79 689 402 051');
       addBytes(LF);
