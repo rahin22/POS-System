@@ -63,12 +63,22 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
   const [showModifierModal, setShowModifierModal] = useState(false);
   const [showModifierGroupModal, setShowModifierGroupModal] = useState(false);
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [productSearchQuery, setProductSearchQuery] = useState('');
 
   const [editingItem, setEditingItem] = useState<any>(null);
 
   const filteredModifiers = selectedGroupFilter === 'all'
     ? modifiers
     : modifiers.filter(m => m.groupId === selectedGroupFilter);
+
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = selectedCategoryFilter === 'all' || p.categoryId === selectedCategoryFilter;
+    const matchesSearch = !productSearchQuery || 
+      p.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
+      p.description?.toLowerCase().includes(productSearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const formatPrice = (price: number) => `${currencySymbol}${price.toFixed(2)}`;
 
@@ -399,7 +409,7 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
         {activeTab === 'products' && (
           <div>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Products ({products.length})</h2>
+              <h2 className="text-xl font-bold text-gray-900">Products ({filteredProducts.length})</h2>
               <button
                 onClick={handleAddProduct}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
@@ -408,8 +418,29 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
               </button>
             </div>
 
+            {/* Search and Filter Bar */}
+            <div className="mb-4 flex gap-3">
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={productSearchQuery}
+                onChange={(e) => setProductSearchQuery(e.target.value)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              <select
+                value={selectedCategoryFilter}
+                onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="all">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <div
                   key={product.id}
                   className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
@@ -661,6 +692,7 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
           product={editingItem}
           categories={categories}
           currencySymbol={currencySymbol}
+          defaultCategoryId={selectedCategoryFilter !== 'all' ? selectedCategoryFilter : undefined}
           onSave={handleSaveProduct}
           onClose={() => setShowProductModal(false)}
         />
@@ -702,16 +734,17 @@ interface ProductModalProps {
   product: Product | null;
   categories: Category[];
   currencySymbol: string;
+  defaultCategoryId?: string;
   onSave: (data: any) => void;
   onClose: () => void;
 }
 
-function ProductModal({ product, categories, currencySymbol, onSave, onClose }: ProductModalProps) {
+function ProductModal({ product, categories, currencySymbol, defaultCategoryId, onSave, onClose }: ProductModalProps) {
   const [name, setName] = useState(product?.name || '');
   const [description, setDescription] = useState(product?.description || '');
   const [price, setPrice] = useState(product?.price?.toString() || '');
   const [pricePerKg, setPricePerKg] = useState(product?.pricePerKg?.toString() || '');
-  const [categoryId, setCategoryId] = useState(product?.categoryId || categories[0]?.id || '');
+  const [categoryId, setCategoryId] = useState(product?.categoryId || defaultCategoryId || categories[0]?.id || '');
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
   const [imageUrl, setImageUrl] = useState(product?.imageUrl || '');
   const [imageFile, setImageFile] = useState<File | null>(null);
