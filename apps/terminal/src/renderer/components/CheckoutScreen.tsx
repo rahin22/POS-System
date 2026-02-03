@@ -307,7 +307,11 @@ export function CheckoutScreen({
           {/* Payment Method Selection */}
           <div className="flex gap-2 mb-6">
             <button
-              onClick={() => setPaymentMode('cash')}
+              onClick={() => {
+                setPaymentMode('cash');
+                setCashAmount(total.toFixed(2));
+                setCardAmount('');
+              }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
                 paymentMode === 'cash'
                   ? 'bg-green-500 text-white'
@@ -317,7 +321,11 @@ export function CheckoutScreen({
               Cash
             </button>
             <button
-              onClick={() => setPaymentMode('card')}
+              onClick={() => {
+                setPaymentMode('card');
+                setCardAmount(total.toFixed(2));
+                setCashAmount('');
+              }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
                 paymentMode === 'card'
                   ? 'bg-blue-500 text-white'
@@ -327,7 +335,11 @@ export function CheckoutScreen({
                Card
             </button>
             <button
-              onClick={() => setPaymentMode('split')}
+              onClick={() => {
+                setPaymentMode('split');
+                setCashAmount('');
+                setCardAmount('');
+              }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
                 paymentMode === 'split'
                   ? 'bg-purple-500 text-white'

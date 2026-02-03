@@ -1,6 +1,6 @@
 {
   "name": "kebabpos-terminal",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Electron POS Terminal for Kebab Shop",
   "main": "dist/main/index.js",
   "homepage": "https://github.com/rahin22/POS-System",
