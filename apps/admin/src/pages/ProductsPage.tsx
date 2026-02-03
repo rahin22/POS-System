@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -40,6 +40,8 @@ export function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'unavailable'>('all');
 
   const loadData = async () => {
     try {
@@ -144,15 +146,44 @@ export function ProductsPage() {
     return <div className="animate-pulse">Loading...</div>;
   }
 
-  const filteredProducts = selectedCategoryId === 'all' 
-    ? products 
-    : products.filter(p => p.categoryId === selectedCategoryId);
+  const filteredProducts = useMemo(() => {
+    let result = products;
+
+    // Category filter
+    if (selectedCategoryId !== 'all') {
+      result = result.filter(p => p.categoryId === selectedCategoryId);
+    }
+
+    // Availability filter
+    if (availabilityFilter === 'available') {
+      result = result.filter(p => p.isAvailable);
+    } else if (availabilityFilter === 'unavailable') {
+      result = result.filter(p => !p.isAvailable);
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(p => 
+        p.name.toLowerCase().includes(query) ||
+        p.description?.toLowerCase().includes(query) ||
+        p.category?.name.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [products, selectedCategoryId, availabilityFilter, searchQuery]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">Products ({filteredProducts.length})</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Products</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Showing {filteredProducts.length} of {products.length} products
+            </p>
+          </div>
           <button
             onClick={() => {
               setEditingProduct(null);
@@ -164,8 +195,19 @@ export function ProductsPage() {
           </button>
         </div>
         
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">Filter by Category:</label>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <div className="flex-1 min-w-[250px]">
+            <input
+              type="text"
+              placeholder="Search by name, description, or category..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+
+          {/* Category Filter */}
           <select
             value={selectedCategoryId}
             onChange={(e) => setSelectedCategoryId(e.target.value)}
@@ -178,11 +220,58 @@ export function ProductsPage() {
               </option>
             ))}
           </select>
+
+          {/* Availability Filter */}
+          <select
+            value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'unavailable')}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          >
+            <option value="all">All Status</option>
+            <option value="available">✅ Available</option>
+            <option value="unavailable">❌ Unavailable</option>
+          </select>
+
+          {/* Clear Filters */}
+          {(searchQuery || selectedCategoryId !== 'all' || availabilityFilter !== 'all') && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategoryId('all');
+                setAvailabilityFilter('all');
+              }}
+              className="text-sm text-red-600 hover:text-red-700 font-medium"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-4xl mb-2">📦</p>
+            <p className="text-gray-500 text-lg">
+              {products.length === 0 
+                ? 'No products yet' 
+                : 'No products match your filters'}
+            </p>
+            {products.length > 0 && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategoryId('all');
+                  setAvailabilityFilter('all');
+                }}
+                className="text-primary-600 hover:text-primary-700 mt-2"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredProducts.map((product) => (
             <div
               key={product.id}
@@ -245,7 +334,8 @@ export function ProductsPage() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {showModal && (
