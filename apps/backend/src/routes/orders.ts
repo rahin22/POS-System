@@ -69,7 +69,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
           items: {
             include: {
               product: {
-                select: { id: true, name: true, price: true },
+                select: { id: true, name: true, price: true, categoryId: true },
               },
               modifiers: {
                 select: { id: true, name: true, price: true },
@@ -122,7 +122,7 @@ router.get('/:id', authenticate, async (req, res) => {
         items: {
           include: {
             product: {
-              select: { id: true, name: true, price: true },
+              select: { id: true, name: true, price: true, categoryId: true },
             },
             modifiers: {
               select: { id: true, name: true, price: true },

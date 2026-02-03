@@ -8,6 +8,62 @@
  */
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
+import receiptLogoUrl from '../assets/receipt_logo.png';
+import reviewQrCodeUrl from '../assets/review_qrcode.png';
+
+// Cache for base64 images
+let receiptLogoBase64Cache: string | null = null;
+let reviewQrCodeBase64Cache: string | null = null;
+
+// Load image as base64 from URL
+async function loadImageBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        // Remove data URL prefix (data:image/png;base64,)
+        resolve(base64.split(',')[1] || base64);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn('Failed to load image:', e);
+    return null;
+  }
+}
+
+// Get receipt logo as base64 (custom or default)
+async function getReceiptLogoBase64(): Promise<string | null> {
+  // Check for custom logo first
+  const { value: customLogo } = await Preferences.get({ key: 'customLogoBase64' });
+  if (customLogo) {
+    return customLogo;
+  }
+  
+  // Fall back to default
+  if (receiptLogoBase64Cache) return receiptLogoBase64Cache;
+  receiptLogoBase64Cache = await loadImageBase64(receiptLogoUrl);
+  return receiptLogoBase64Cache;
+}
+
+// Get review QR code as base64 (custom or default)
+async function getReviewQrCodeBase64(): Promise<string | null> {
+  // Check for custom QR code first
+  const { value: customQrCode } = await Preferences.get({ key: 'customQrCodeBase64' });
+  if (customQrCode) {
+    return customQrCode;
+  }
+  
+  // Fall back to default
+  if (reviewQrCodeBase64Cache) return reviewQrCodeBase64Cache;
+  reviewQrCodeBase64Cache = await loadImageBase64(reviewQrCodeUrl);
+  return reviewQrCodeBase64Cache;
+}
 
 // Register the Sunmi Printer plugin
 export interface SunmiPrinterPlugin {
@@ -17,9 +73,10 @@ export interface SunmiPrinterPlugin {
   setFontSize(options: { size: number }): Promise<void>;
   printText(options: { text: string }): Promise<void>;
   printTextWithFont(options: { text: string; typeface: string; fontSize: number }): Promise<void>;
+  printTextStyled(options: { text: string; fontSize?: number; alignment?: number; bold?: boolean }): Promise<void>;
   printColumnsText(options: { texts: string[]; widths: number[]; aligns: number[] }): Promise<void>;
-  printQRCode(options: { data: string; moduleSize: number; errorLevel: number }): Promise<void>;
-  printBitmap(options: { bitmap: string; width: number }): Promise<void>;
+  printQRCode(options: { data: string; moduleSize?: number; errorLevel?: number; alignment?: number }): Promise<void>;
+  printBitmap(options: { bitmap: string; width?: number; alignment?: number }): Promise<void>;
   lineWrap(options: { lines: number }): Promise<void>;
   cutPaper(): Promise<void>;
   openDrawer(): Promise<void>;
@@ -93,22 +150,27 @@ export async function printReceipt(orderData: PrintOrderData): Promise<{ success
     // Initialize printer
     await SunmiPrinter.printerInit();
 
-    // Print logo (if configured)
-    // await SunmiPrinter.printBitmap({ bitmap: logoBase64, width: 384 }); // 58mm width
+    // Print logo (centered)
+    try {
+      const logoBase64 = await getReceiptLogoBase64();
+      if (logoBase64) {
+        await SunmiPrinter.printBitmap({ bitmap: logoBase64, width: 384, alignment: 1 }); // CENTER
+        await SunmiPrinter.printText({ text: '\n' });
+      }
+    } catch (logoError) {
+      console.warn('Logo print failed:', logoError);
+    }
 
-    // Business header
-    await SunmiPrinter.setAlignment({ alignment: 1 }); // Center
-    await SunmiPrinter.printTextWithFont({ text: 'Shop 7a/22 Mawson Pl, Mawson ACT 2607\n', typeface: '', fontSize: 24 });
-    await SunmiPrinter.printTextWithFont({ text: 'ALTAHER LIMITED | ABN: 79 689 402 051\n', typeface: '', fontSize: 24 });
-    await SunmiPrinter.printText({ text: '================================\n' });
+    // Business header (centered using printTextStyled)
+    await SunmiPrinter.printTextStyled({ text: 'Shop 7a/22 Mawson Pl, Mawson ACT 2607\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: 'ALTAHER LIMITED | ABN: 79 689 402 051\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: '================================\n', fontSize: 24, alignment: 1 });
 
-    // Order type
-    await SunmiPrinter.setFontSize({ size: 32 });
-    await SunmiPrinter.printTextWithFont({ text: orderData.orderType.toUpperCase() + '\n', typeface: '', fontSize: 32 });
+    // Order type (centered)
+    await SunmiPrinter.printTextStyled({ text: orderData.orderType.toUpperCase() + '\n', fontSize: 32, alignment: 1 });
     
-    // Order number (large)
-    await SunmiPrinter.setFontSize({ size: 48 });
-    await SunmiPrinter.printTextWithFont({ text: `#${orderData.orderNumber}\n`, typeface: '', fontSize: 48 });
+    // Order number (large, centered)
+    await SunmiPrinter.printTextStyled({ text: `#${orderData.orderNumber}\n`, fontSize: 48, alignment: 1 });
     
     await SunmiPrinter.setFontSize({ size: 24 });
     await SunmiPrinter.setAlignment({ alignment: 0 }); // Left
@@ -159,17 +221,24 @@ export async function printReceipt(orderData: PrintOrderData): Promise<{ success
     await SunmiPrinter.printText({ text: '--------------------------------\n' });
     await SunmiPrinter.printText({ text: `Paid by: ${orderData.paymentMethod}\n` });
 
-    // Footer
-    await SunmiPrinter.setAlignment({ alignment: 1 }); // Center
-    await SunmiPrinter.printText({ text: '\n' });
-    await SunmiPrinter.printText({ text: 'Thank you for your order!\n' });
-    await SunmiPrinter.printText({ text: 'See you again soon\n' });
-    await SunmiPrinter.printText({ text: '\n' });
-    await SunmiPrinter.printText({ text: 'If you enjoyed your meal,\n' });
-    await SunmiPrinter.printText({ text: "we'd love a review!\n" });
+    // Footer (centered)
+    await SunmiPrinter.printTextStyled({ text: '\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: 'Thank you for your order!\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: 'See you again soon\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: '\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: 'If you enjoyed your meal,\n', fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: "we'd love a review!\n", fontSize: 24, alignment: 1 });
+    await SunmiPrinter.printTextStyled({ text: '\n', fontSize: 24, alignment: 1 });
 
-    // Print QR code (if configured)
-    // await SunmiPrinter.printQRCode({ data: qrCodeUrl, moduleSize: 8, errorLevel: 0 });
+    // Print review QR code image (centered)
+    try {
+      const qrCodeBase64 = await getReviewQrCodeBase64();
+      if (qrCodeBase64) {
+        await SunmiPrinter.printBitmap({ bitmap: qrCodeBase64, width: 300, alignment: 1 }); // CENTER
+      }
+    } catch (qrError) {
+      console.warn('QR code print failed:', qrError);
+    }
 
     // Feed and cut
     await SunmiPrinter.lineWrap({ lines: 4 });

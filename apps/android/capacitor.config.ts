@@ -1,14 +1,18 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+const isDev = process.env.NODE_ENV === 'development';
+
 const config: CapacitorConfig = {
   appId: 'com.kebabpos.terminal',
   appName: 'KebabPOS',
   webDir: 'dist',
-  server: {
-    // For development, use live reload
-    url: 'http://192.168.0.14:5173',
-    cleartext: true
-  },
+  // Only use dev server in development mode
+  ...(isDev ? {
+    server: {
+      url: 'http://192.168.0.14:5173',
+      cleartext: true
+    }
+  } : {}),
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,

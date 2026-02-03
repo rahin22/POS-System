@@ -843,7 +843,7 @@ function ProductModal({ product, categories, modifierGroups, currencySymbol, def
       isAvailable,
       imageUrl: finalImageUrl || undefined,
       sortOrder: parseInt(sortOrder),
-    });
+    }, selectedModifierGroups);
   };
 
   return (

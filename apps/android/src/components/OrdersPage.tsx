@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../context/ApiContext';
 import { printer } from '../lib/platform';
+import { Cake } from 'lucide-react';
 
 interface OrderItem {
   id: string;
@@ -11,6 +12,7 @@ interface OrderItem {
   product: {
     id: string;
     name: string;
+    categoryId?: string;
   };
   modifiers: Array<{
     id: string;
@@ -71,6 +73,8 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState<Order['status'] | 'active' | 'all'>('active');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [dessertFilterOn, setDessertFilterOn] = useState(false);
+  const [dessertCategoryId, setDessertCategoryId] = useState<string | null>(null);
 
   const formatPrice = (price: number) => `${currencySymbol}${price.toFixed(2)}`;
 
@@ -192,6 +196,24 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
   useEffect(() => {
     loadOrders();
   }, [filterStatus]); // Only depend on filterStatus, not loadOrders
+
+  // Load desserts category ID on mount
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await fetchApi<{ success: boolean; data: Array<{ id: string; name: string }> }>('/api/categories');
+        if (response.success) {
+          const dessertCat = response.data.find(c => c.name.toLowerCase() === 'desserts');
+          if (dessertCat) {
+            setDessertCategoryId(dessertCat.id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+      }
+    };
+    loadCategories();
+  }, [fetchApi]);
 
   // Set up auto-refresh separately
   useEffect(() => {
@@ -345,12 +367,27 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
       <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Kitchen Orders</h1>
-          <button
-            onClick={loadOrders}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Dessert Filter Toggle */}
+            <button
+              onClick={() => setDessertFilterOn(!dessertFilterOn)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                dessertFilterOn
+                  ? 'bg-pink-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title="Filter dessert orders only"
+            >
+              <Cake className="w-5 h-5" />
+              <span className="hidden sm:inline">Desserts</span>
+            </button>
+            <button
+              onClick={loadOrders}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Filter Tabs */}
@@ -407,19 +444,53 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
             </div>
           </div>
         )}
-        {orders.length === 0 && !isTabLoading ? (
-          <div className="text-center py-16">
-            <div className="text-gray-400 mb-4">
-              <svg className="w-24 h-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <p className="text-xl text-gray-500">No orders found</p>
-            <p className="text-sm text-gray-400 mt-2">Orders will appear here as they come in</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => (
+        {(() => {
+          // Helper to check if order has dessert items
+          const hasDessertItems = (order: Order) => {
+            if (!dessertCategoryId || !order.items) return false;
+            return order.items.some(item => item.product.categoryId === dessertCategoryId);
+          };
+          
+          // Filter orders if dessert filter is on
+          const filteredOrders = dessertFilterOn && dessertCategoryId
+            ? orders.filter(hasDessertItems)
+            : orders;
+          
+          if (filteredOrders.length === 0 && !isTabLoading) {
+            return (
+              <div className="text-center py-16">
+                <div className="text-gray-400 mb-4">
+                  {dessertFilterOn ? (
+                    <Cake className="w-24 h-24 mx-auto" />
+                  ) : (
+                    <svg className="w-24 h-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  )}
+                </div>
+                <p className="text-xl text-gray-500">
+                  {dessertFilterOn ? 'No dessert orders found' : 'No orders found'}
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  {dessertFilterOn 
+                    ? 'Orders with dessert items will appear here' 
+                    : 'Orders will appear here as they come in'}
+                </p>
+                {dessertFilterOn && (
+                  <button
+                    onClick={() => setDessertFilterOn(false)}
+                    className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Show All Orders
+                  </button>
+                )}
+              </div>
+            );
+          }
+          
+          return (
+            <div className="space-y-4">
+              {filteredOrders.map((order) => (
               <div
                 key={order.id}
                 className={`bg-white rounded-lg border-l-4 shadow-sm hover:shadow-md transition-shadow ${
@@ -532,7 +603,8 @@ export function OrdersPage({ currencySymbol }: OrdersPageProps) {
               </div>
             ))}
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Order Detail Modal */}

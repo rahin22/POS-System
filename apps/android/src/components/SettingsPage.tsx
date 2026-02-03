@@ -1,12 +1,20 @@
-import { useState, useEffect } from 'react';
-import { Settings, Printer, Info, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings, Printer, Info, RefreshCw, Image, QrCode, Trash2 } from 'lucide-react';
 import { printer, appInfo, settings as platformSettings } from '../lib/platform';
+
+// Default assets
+import defaultLogoUrl from '../assets/receipt_logo.png';
+import defaultQrCodeUrl from '../assets/review_qrcode.png';
 
 export function SettingsPage() {
   const [printerStatus, setPrinterStatus] = useState<{ connected: boolean; error?: string }>({ connected: false });
   const [appVersion, setAppVersion] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [printerEnabled, setPrinterEnabled] = useState(true);
+  const [customLogoPreview, setCustomLogoPreview] = useState<string | null>(null);
+  const [customQrCodePreview, setCustomQrCodePreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const qrCodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadInfo();
@@ -24,6 +32,12 @@ export function SettingsPage() {
     // Get printer enabled setting
     const enabled = await platformSettings.get('printerEnabled', true);
     setPrinterEnabled(enabled);
+    
+    // Load custom images from storage
+    const customLogo = await platformSettings.get('customLogoBase64', null);
+    const customQrCode = await platformSettings.get('customQrCodeBase64', null);
+    setCustomLogoPreview(customLogo);
+    setCustomQrCodePreview(customQrCode);
   };
 
   const handleRefresh = async () => {
@@ -57,6 +71,38 @@ export function SettingsPage() {
       alert('Test print sent successfully!');
     } else {
       alert(`Print failed: ${result.error}`);
+    }
+  };
+
+  const handleImageUpload = async (file: File, type: 'logo' | 'qrcode') => {
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        // Remove data URL prefix for storage
+        const base64Data = base64.split(',')[1] || base64;
+        
+        if (type === 'logo') {
+          await platformSettings.set('customLogoBase64', base64Data);
+          setCustomLogoPreview(base64Data);
+        } else {
+          await platformSettings.set('customQrCodeBase64', base64Data);
+          setCustomQrCodePreview(base64Data);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      alert(`Failed to upload image: ${error}`);
+    }
+  };
+
+  const handleResetImage = async (type: 'logo' | 'qrcode') => {
+    if (type === 'logo') {
+      await platformSettings.set('customLogoBase64', null);
+      setCustomLogoPreview(null);
+    } else {
+      await platformSettings.set('customQrCodeBase64', null);
+      setCustomQrCodePreview(null);
     }
   };
 
@@ -124,6 +170,118 @@ export function SettingsPage() {
             >
               Test Print
             </button>
+          </div>
+        </div>
+
+        {/* Receipt Customization */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Image className="w-5 h-5" />
+            Receipt Customization
+          </h2>
+
+          <div className="space-y-6">
+            {/* Custom Logo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Receipt Logo
+              </label>
+              <div className="flex items-center gap-4">
+                <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                  <img 
+                    src={customLogoPreview ? `data:image/png;base64,${customLogoPreview}` : defaultLogoUrl} 
+                    alt="Logo" 
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm text-gray-500">
+                    {customLogoPreview ? 'Custom logo' : 'Using default logo'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-1"
+                    >
+                      <Image className="w-4 h-4" />
+                      Change
+                    </button>
+                    {customLogoPreview && (
+                      <button
+                        onClick={() => handleResetImage('logo')}
+                        className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 flex items-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageUpload(file, 'logo');
+                }}
+              />
+            </div>
+
+            {/* Custom QR Code */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Review QR Code
+              </label>
+              <div className="flex items-center gap-4">
+                <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                  <img 
+                    src={customQrCodePreview ? `data:image/png;base64,${customQrCodePreview}` : defaultQrCodeUrl} 
+                    alt="QR Code" 
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm text-gray-500">
+                    {customQrCodePreview ? 'Custom QR code' : 'Using default QR code'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => qrCodeInputRef.current?.click()}
+                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-1"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      Change
+                    </button>
+                    {customQrCodePreview && (
+                      <button
+                        onClick={() => handleResetImage('qrcode')}
+                        className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 flex items-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <input
+                ref={qrCodeInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageUpload(file, 'qrcode');
+                }}
+              />
+            </div>
+
+            <p className="text-xs text-gray-500">
+              For best results, use PNG images with transparent backgrounds. Logo should be black/white for thermal printing.
+            </p>
           </div>
         </div>
 

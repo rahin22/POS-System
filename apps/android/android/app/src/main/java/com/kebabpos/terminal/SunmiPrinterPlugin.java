@@ -54,10 +54,11 @@ public class SunmiPrinterPlugin extends Plugin {
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     // Printer types
-    private enum PrinterType { NONE, SUNMI, BLUETOOTH, USB }
+    private enum PrinterType { NONE, SUNMI, SUNMI_AIDL, BLUETOOTH, USB }
     
     private PrinterType activePrinterType = PrinterType.NONE;
     private Object sunmiPrinter = null;
+    private Object sunmiAidlService = null;
     private BluetoothSocket bluetoothSocket = null;
     private OutputStream bluetoothOutputStream = null;
     private UsbDeviceConnection usbConnection = null;
@@ -90,12 +91,58 @@ public class SunmiPrinterPlugin extends Plugin {
      * Auto-detect and connect to best available printer
      */
     private void autoConnect() {
-        // Try Sunmi first
+        // Try Sunmi PrinterX SDK first (works on T2s)
         if (connectSunmi()) {
-            Log.i(TAG, "Connected to Sunmi built-in printer");
+            Log.i(TAG, "Connected to Sunmi PrinterX SDK");
             return;
         }
         Log.i(TAG, "Sunmi not available, will use Bluetooth/USB when connected");
+    }
+
+    /**
+     * Connect to Sunmi via AIDL service (T2s, V2, etc)
+     */
+    private boolean connectSunmiAidl() {
+        try {
+            android.content.Intent intent = new android.content.Intent();
+            intent.setPackage("woyou.aidlservice.jiuiv5");
+            intent.setAction("woyou.aidlservice.jiuiv5.IWoyouService");
+            
+            getContext().bindService(intent, new android.content.ServiceConnection() {
+                @Override
+                public void onServiceConnected(android.content.ComponentName name, android.os.IBinder service) {
+                    try {
+                        Class<?> stubClass = Class.forName("woyou.aidlservice.jiuiv5.IWoyouService$Stub");
+                        sunmiAidlService = stubClass.getMethod("asInterface", android.os.IBinder.class).invoke(null, service);
+                        activePrinterType = PrinterType.SUNMI_AIDL;
+                        isConnected = true;
+                        Log.i(TAG, "Sunmi AIDL service connected");
+                        
+                        JSObject ret = new JSObject();
+                        ret.put("connected", true);
+                        ret.put("type", "sunmi");
+                        notifyListeners("printerConnected", ret);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error getting AIDL interface", e);
+                    }
+                }
+
+                @Override
+                public void onServiceDisconnected(android.content.ComponentName name) {
+                    sunmiAidlService = null;
+                    if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                        activePrinterType = PrinterType.NONE;
+                        isConnected = false;
+                    }
+                    Log.i(TAG, "Sunmi AIDL service disconnected");
+                }
+            }, android.content.Context.BIND_AUTO_CREATE);
+            
+            return true;
+        } catch (Exception e) {
+            Log.d(TAG, "Sunmi AIDL not available: " + e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -144,7 +191,7 @@ public class SunmiPrinterPlugin extends Plugin {
         JSObject result = new JSObject();
         JSArray printers = new JSArray();
 
-        // Check Sunmi
+        // Check Sunmi (PrinterX SDK)
         if (activePrinterType == PrinterType.SUNMI && sunmiPrinter != null) {
             JSObject sunmi = new JSObject();
             sunmi.put("name", "Sunmi Built-in Printer");
@@ -213,6 +260,12 @@ public class SunmiPrinterPlugin extends Plugin {
         String type = call.getString("type", "auto");
 
         if ("sunmi".equals(address) || "sunmi".equals(type)) {
+            // If already connected via PrinterX, resolve immediately
+            if (activePrinterType == PrinterType.SUNMI && sunmiPrinter != null) {
+                call.resolve();
+                return;
+            }
+            // Try PrinterX SDK
             if (connectSunmi()) {
                 call.resolve();
             } else {
@@ -379,7 +432,10 @@ public class SunmiPrinterPlugin extends Plugin {
         
         try {
             if (activePrinterType == PrinterType.SUNMI) {
-                // Sunmi handles init
+                // Sunmi PrinterX handles init
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("printerInit", Object.class)
+                    .invoke(sunmiAidlService, (Object) null);
             } else {
                 writeEscPos(ESC_INIT);
             }
@@ -395,7 +451,10 @@ public class SunmiPrinterPlugin extends Plugin {
         
         int alignment = call.getInt("alignment", 0);
         try {
-            if (activePrinterType != PrinterType.SUNMI) {
+            if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("setAlignment", int.class, Object.class)
+                    .invoke(sunmiAidlService, alignment, null);
+            } else if (activePrinterType != PrinterType.SUNMI) {
                 switch (alignment) {
                     case 1: writeEscPos(ESC_ALIGN_CENTER); break;
                     case 2: writeEscPos(ESC_ALIGN_RIGHT); break;
@@ -414,7 +473,10 @@ public class SunmiPrinterPlugin extends Plugin {
         
         int size = call.getInt("size", 24);
         try {
-            if (activePrinterType != PrinterType.SUNMI) {
+            if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("setFontSize", float.class, Object.class)
+                    .invoke(sunmiAidlService, (float) size, null);
+            } else if (activePrinterType != PrinterType.SUNMI) {
                 if (size >= 48) {
                     writeEscPos(ESC_DOUBLE_SIZE);
                 } else if (size >= 36) {
@@ -436,13 +498,50 @@ public class SunmiPrinterPlugin extends Plugin {
         String text = call.getString("text", "");
         try {
             if (activePrinterType == PrinterType.SUNMI) {
-                printTextSunmi(text);
+                Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
+                // Log available methods for debugging
+                for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                    if (m.getName().contains("print") || m.getName().contains("add") || m.getName().contains("text")) {
+                        Log.d(TAG, "LineApi method: " + m.getName() + " params: " + java.util.Arrays.toString(m.getParameterTypes()));
+                    }
+                }
+                // Try different method signatures
+                boolean printed = false;
+                // Try 1: printText(String, BaseStyle)
+                for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                    if (m.getName().equals("printText") && m.getParameterCount() == 2) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params[0] == String.class) {
+                            m.invoke(lineApi, text, null);
+                            printed = true;
+                            Log.d(TAG, "Used printText with params: " + java.util.Arrays.toString(params));
+                            break;
+                        }
+                    }
+                }
+                // Try 2: printText(String)
+                if (!printed) {
+                    for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                        if (m.getName().equals("printText") && m.getParameterCount() == 1) {
+                            m.invoke(lineApi, text);
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!printed) {
+                    throw new Exception("No suitable printText method found");
+                }
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("printText", String.class, Object.class)
+                    .invoke(sunmiAidlService, text, null);
             } else {
                 writeEscPos(text.getBytes("GBK"));
             }
             call.resolve();
         } catch (Exception e) {
-            call.reject("Failed to print text", e);
+            Log.e(TAG, "printText error", e);
+            call.reject("Failed to print text: " + e.getMessage(), e);
         }
     }
 
@@ -454,7 +553,9 @@ public class SunmiPrinterPlugin extends Plugin {
         int fontSize = call.getInt("fontSize", 24);
         try {
             if (activePrinterType == PrinterType.SUNMI) {
-                printTextSunmi(text);
+                printTextSunmiWithFont(text, fontSize);
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                printTextSunmiAidl(text, fontSize);
             } else {
                 if (fontSize >= 48) writeEscPos(ESC_DOUBLE_SIZE);
                 else if (fontSize >= 36) writeEscPos(ESC_DOUBLE_HEIGHT);
@@ -463,18 +564,224 @@ public class SunmiPrinterPlugin extends Plugin {
             }
             call.resolve();
         } catch (Exception e) {
-            call.reject("Failed to print text with font", e);
+            Log.e(TAG, "printTextWithFont error: " + e.getMessage(), e);
+            call.reject("Failed to print text with font: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void printTextStyled(PluginCall call) {
+        if (!checkPrinter(call)) return;
+        
+        String text = call.getString("text", "");
+        int fontSize = call.getInt("fontSize", 24);
+        int alignment = call.getInt("alignment", 0); // 0=LEFT, 1=CENTER, 2=RIGHT
+        boolean bold = call.getBoolean("bold", false);
+        
+        try {
+            if (activePrinterType == PrinterType.SUNMI) {
+                printTextSunmiStyled(text, fontSize, alignment, bold);
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                // Set alignment first
+                sunmiAidlService.getClass().getMethod("setAlignment", int.class, Object.class)
+                    .invoke(sunmiAidlService, alignment, null);
+                printTextSunmiAidl(text, fontSize);
+            } else {
+                // ESC/POS
+                switch (alignment) {
+                    case 1: writeEscPos(ESC_ALIGN_CENTER); break;
+                    case 2: writeEscPos(ESC_ALIGN_RIGHT); break;
+                    default: writeEscPos(ESC_ALIGN_LEFT); break;
+                }
+                if (bold) writeEscPos(ESC_BOLD_ON);
+                if (fontSize >= 48) writeEscPos(ESC_DOUBLE_SIZE);
+                else if (fontSize >= 36) writeEscPos(ESC_DOUBLE_HEIGHT);
+                writeEscPos(text.getBytes("GBK"));
+                writeEscPos(ESC_NORMAL_SIZE);
+                if (bold) writeEscPos(ESC_BOLD_OFF);
+                writeEscPos(ESC_ALIGN_LEFT); // Reset alignment
+            }
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "printTextStyled error: " + e.getMessage(), e);
+            call.reject("Failed to print styled text: " + e.getMessage(), e);
+        }
+    }
+
+    private void printTextSunmiStyled(String text, int fontSize, int alignment, boolean bold) throws Exception {
+        Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
+        
+        try {
+            // Build text style
+            Class<?> textStyleClass = Class.forName("com.sunmi.printerx.style.TextStyle");
+            Object textStyle = textStyleClass.getMethod("getStyle").invoke(null);
+            
+            // Set font size
+            try {
+                textStyleClass.getMethod("setTextSize", int.class).invoke(textStyle, fontSize);
+            } catch (Exception e) {
+                Log.d(TAG, "setTextSize not available: " + e.getMessage());
+            }
+            
+            // Set alignment
+            try {
+                Class<?> alignClass = Class.forName("com.sunmi.printerx.enums.Align");
+                Object alignValue = null;
+                String alignName = alignment == 1 ? "CENTER" : alignment == 2 ? "RIGHT" : "LEFT";
+                for (Object enumConstant : alignClass.getEnumConstants()) {
+                    if (enumConstant.toString().equals(alignName)) {
+                        alignValue = enumConstant;
+                        break;
+                    }
+                }
+                if (alignValue != null) {
+                    textStyleClass.getMethod("setAlign", alignClass).invoke(textStyle, alignValue);
+                    Log.d(TAG, "Set text alignment to " + alignName);
+                }
+            } catch (Exception e) {
+                Log.d(TAG, "setAlign not available: " + e.getMessage());
+            }
+            
+            // Set bold
+            if (bold) {
+                try {
+                    textStyleClass.getMethod("enableBold", boolean.class).invoke(textStyle, true);
+                } catch (Exception e) {
+                    Log.d(TAG, "enableBold not available: " + e.getMessage());
+                }
+            }
+            
+            lineApi.getClass().getMethod("printText", String.class, textStyleClass).invoke(lineApi, text, textStyle);
+        } catch (Exception e) {
+            // Fallback: print without style
+            Log.d(TAG, "printText styled failed, using basic: " + e.getMessage());
+            Class<?> textStyleClass = Class.forName("com.sunmi.printerx.style.TextStyle");
+            lineApi.getClass().getMethod("printText", String.class, textStyleClass).invoke(lineApi, text, null);
         }
     }
 
     private void printTextSunmi(String text) throws Exception {
         Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
-        lineApi.getClass().getMethod("printText", String.class).invoke(lineApi, text);
+        // Try printText with null style
+        try {
+            Class<?> textStyleClass = Class.forName("com.sunmi.printerx.style.TextStyle");
+            lineApi.getClass().getMethod("printText", String.class, textStyleClass).invoke(lineApi, text, null);
+        } catch (Exception e) {
+            Log.d(TAG, "printText with style failed: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    private void printTextSunmiWithFont(String text, int fontSize) throws Exception {
+        Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
+        
+        try {
+            // Build text style
+            Class<?> textStyleClass = Class.forName("com.sunmi.printerx.style.TextStyle");
+            Object textStyle = textStyleClass.getMethod("getStyle").invoke(null);
+            
+            // Set font size
+            try {
+                textStyleClass.getMethod("setTextSize", int.class).invoke(textStyle, fontSize);
+            } catch (Exception e) {
+                Log.d(TAG, "setTextSize not available: " + e.getMessage());
+            }
+            
+            lineApi.getClass().getMethod("printText", String.class, textStyleClass).invoke(lineApi, text, textStyle);
+        } catch (Exception e) {
+            // Fallback: print without style
+            Log.d(TAG, "printText with font failed, using basic: " + e.getMessage());
+            Class<?> textStyleClass = Class.forName("com.sunmi.printerx.style.TextStyle");
+            lineApi.getClass().getMethod("printText", String.class, textStyleClass).invoke(lineApi, text, null);
+        }
+    }
+
+    private void printTextSunmiAidl(String text, int fontSize) throws Exception {
+        if (sunmiAidlService == null) throw new Exception("AIDL service not connected");
+        
+        // Set font size first
+        sunmiAidlService.getClass().getMethod("setFontSize", float.class, Object.class)
+            .invoke(sunmiAidlService, (float) fontSize, null);
+        
+        // Print text
+        sunmiAidlService.getClass().getMethod("printText", String.class, Object.class)
+            .invoke(sunmiAidlService, text, null);
     }
 
     @PluginMethod
     public void printColumnsText(PluginCall call) {
-        call.resolve();
+        if (!checkPrinter(call)) return;
+        
+        try {
+            JSArray texts = call.getArray("texts");
+            JSArray widths = call.getArray("widths");
+            JSArray aligns = call.getArray("aligns");
+            
+            if (texts == null || texts.length() == 0) {
+                call.resolve();
+                return;
+            }
+            
+            // Build formatted line
+            StringBuilder line = new StringBuilder();
+            
+            for (int i = 0; i < texts.length(); i++) {
+                String text = texts.getString(i);
+                int width = i < widths.length() ? widths.getInt(i) : 10;
+                int align = i < aligns.length() ? aligns.getInt(i) : 0;
+                
+                // Pad/truncate text to width
+                if (text.length() > width) {
+                    text = text.substring(0, width);
+                }
+                
+                if (align == 0) { // Left
+                    line.append(String.format("%-" + width + "s", text));
+                } else if (align == 1) { // Center
+                    int pad = (width - text.length()) / 2;
+                    line.append(String.format("%" + (pad + text.length()) + "s", text));
+                    line.append(String.format("%-" + (width - pad - text.length()) + "s", ""));
+                } else { // Right
+                    line.append(String.format("%" + width + "s", text));
+                }
+            }
+            line.append("\n");
+            
+            // Print using dynamic method lookup
+            if (activePrinterType == PrinterType.SUNMI) {
+                Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
+                boolean printed = false;
+                for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                    if (m.getName().equals("printText") && m.getParameterCount() == 2) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params[0] == String.class) {
+                            m.invoke(lineApi, line.toString(), null);
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!printed) {
+                    for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                        if (m.getName().equals("printText") && m.getParameterCount() == 1) {
+                            m.invoke(lineApi, line.toString());
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("printText", String.class, Object.class)
+                    .invoke(sunmiAidlService, line.toString(), null);
+            } else {
+                writeEscPos(line.toString().getBytes("GBK"));
+            }
+            
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "printColumnsText error", e);
+            call.reject("Failed to print columns: " + e.getMessage(), e);
+        }
     }
 
     @PluginMethod
@@ -483,32 +790,212 @@ public class SunmiPrinterPlugin extends Plugin {
 
         String data = call.getString("data", "");
         int moduleSize = call.getInt("moduleSize", 8);
+        int alignment = call.getInt("alignment", 1); // Default to CENTER (1)
         try {
             if (activePrinterType == PrinterType.SUNMI) {
                 Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
-                lineApi.getClass().getMethod("printQrCode", String.class, int.class).invoke(lineApi, data, moduleSize);
+                
+                // Try to create QrStyle with alignment
+                boolean printed = false;
+                try {
+                    Class<?> qrStyleClass = Class.forName("com.sunmi.printerx.style.QrStyle");
+                    Object qrStyle = qrStyleClass.getMethod("getStyle").invoke(null);
+                    
+                    // Set alignment
+                    try {
+                        Class<?> alignClass = Class.forName("com.sunmi.printerx.enums.Align");
+                        Object alignValue = null;
+                        String alignName = alignment == 1 ? "CENTER" : alignment == 2 ? "RIGHT" : "LEFT";
+                        for (Object enumConstant : alignClass.getEnumConstants()) {
+                            if (enumConstant.toString().equals(alignName)) {
+                                alignValue = enumConstant;
+                                break;
+                            }
+                        }
+                        if (alignValue != null) {
+                            qrStyleClass.getMethod("setAlign", alignClass).invoke(qrStyle, alignValue);
+                            Log.d(TAG, "Set QR alignment to " + alignName);
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "Could not set QR alignment: " + e.getMessage());
+                    }
+                    
+                    // Set dot size if method exists
+                    try {
+                        qrStyleClass.getMethod("setDot", int.class).invoke(qrStyle, moduleSize);
+                    } catch (Exception e) {
+                        Log.d(TAG, "Could not set QR dot size: " + e.getMessage());
+                    }
+                    
+                    // Print with style
+                    lineApi.getClass().getMethod("printQrCode", String.class, qrStyleClass)
+                        .invoke(lineApi, data, qrStyle);
+                    printed = true;
+                    Log.d(TAG, "Printed QR code with QrStyle");
+                } catch (Exception e) {
+                    Log.d(TAG, "printQrCode with style failed: " + e.getMessage());
+                }
+                
+                // Fallback: try dynamic method lookup
+                if (!printed) {
+                    for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                        if (m.getName().equals("printQrCode") && m.getParameterCount() == 2) {
+                            Class<?>[] params = m.getParameterTypes();
+                            if (params[0] == String.class) {
+                                m.invoke(lineApi, data, null);
+                                printed = true;
+                                Log.d(TAG, "Used printQrCode with params: " + java.util.Arrays.toString(params));
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!printed) {
+                    for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                        if (m.getName().equals("printQrCode") && m.getParameterCount() == 1) {
+                            m.invoke(lineApi, data);
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!printed) {
+                    Log.e(TAG, "No suitable printQrCode method found");
+                }
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("printQRCode", String.class, int.class, int.class, Object.class)
+                    .invoke(sunmiAidlService, data, moduleSize, 3, null);
             } else {
                 // ESC/POS QR Code commands
                 byte[] qrData = data.getBytes("UTF-8");
                 int len = qrData.length + 3;
                 byte[] cmd = new byte[] {
-                    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, (byte) moduleSize,  // Set size
-                    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,                // Error correction
-                    0x1D, 0x28, 0x6B, (byte) (len % 256), (byte) (len / 256), 0x31, 0x50, 0x30  // Store data
+                    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, (byte) moduleSize,
+                    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,
+                    0x1D, 0x28, 0x6B, (byte) (len % 256), (byte) (len / 256), 0x31, 0x50, 0x30
                 };
                 writeEscPos(cmd);
                 writeEscPos(qrData);
-                writeEscPos(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30 }); // Print
+                writeEscPos(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30 });
             }
             call.resolve();
         } catch (Exception e) {
-            call.reject("Failed to print QR code", e);
+            Log.e(TAG, "printQRCode error", e);
+            call.reject("Failed to print QR code: " + e.getMessage(), e);
         }
     }
 
     @PluginMethod
     public void printBitmap(PluginCall call) {
-        call.resolve();
+        if (!checkPrinter(call)) return;
+        
+        String base64 = call.getString("bitmap", "");
+        int alignment = call.getInt("alignment", 1); // Default to CENTER (1)
+        if (base64.isEmpty()) {
+            call.resolve();
+            return;
+        }
+        
+        try {
+            // Decode base64 to bitmap
+            byte[] decodedBytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+            
+            if (bitmap == null) {
+                call.reject("Failed to decode bitmap");
+                return;
+            }
+            
+            if (activePrinterType == PrinterType.SUNMI) {
+                Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
+                
+                // Log available bitmap methods
+                for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                    if (m.getName().toLowerCase().contains("bitmap") || m.getName().toLowerCase().contains("image")) {
+                        Log.d(TAG, "Bitmap method: " + m.getName() + " params: " + java.util.Arrays.toString(m.getParameterTypes()));
+                    }
+                }
+                
+                // Try to create BitmapStyle with DITHERING algorithm and alignment
+                boolean printed = false;
+                try {
+                    Class<?> bitmapStyleClass = Class.forName("com.sunmi.printerx.style.BitmapStyle");
+                    Object bitmapStyle = bitmapStyleClass.getMethod("getStyle").invoke(null);
+                    
+                    // Set alignment
+                    try {
+                        Class<?> alignClass = Class.forName("com.sunmi.printerx.enums.Align");
+                        Object alignValue = null;
+                        String alignName = alignment == 1 ? "CENTER" : alignment == 2 ? "RIGHT" : "LEFT";
+                        for (Object enumConstant : alignClass.getEnumConstants()) {
+                            if (enumConstant.toString().equals(alignName)) {
+                                alignValue = enumConstant;
+                                break;
+                            }
+                        }
+                        if (alignValue != null) {
+                            bitmapStyleClass.getMethod("setAlign", alignClass).invoke(bitmapStyle, alignValue);
+                            Log.d(TAG, "Set bitmap alignment to " + alignName);
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "Could not set alignment: " + e.getMessage());
+                    }
+                    
+                    // Try to set algorithm to DITHERING (better for logos)
+                    try {
+                        Class<?> algorithmClass = Class.forName("com.sunmi.printerx.enums.ImageAlgorithm");
+                        Object dithering = null;
+                        for (Object enumConstant : algorithmClass.getEnumConstants()) {
+                            if (enumConstant.toString().equals("DITHERING")) {
+                                dithering = enumConstant;
+                                break;
+                            }
+                        }
+                        if (dithering != null) {
+                            bitmapStyleClass.getMethod("setAlgorithm", algorithmClass).invoke(bitmapStyle, dithering);
+                            Log.d(TAG, "Set image algorithm to DITHERING");
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "Could not set algorithm: " + e.getMessage());
+                    }
+                    
+                    // Print with style
+                    lineApi.getClass().getMethod("printBitmap", android.graphics.Bitmap.class, bitmapStyleClass)
+                        .invoke(lineApi, bitmap, bitmapStyle);
+                    printed = true;
+                    Log.d(TAG, "Printed bitmap with BitmapStyle");
+                } catch (Exception e) {
+                    Log.d(TAG, "printBitmap with style failed: " + e.getMessage());
+                }
+                
+                // Fallback: try dynamic method lookup
+                if (!printed) {
+                    for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                        if (m.getName().equals("printBitmap") && m.getParameterCount() == 2) {
+                            Class<?>[] params = m.getParameterTypes();
+                            if (params[0] == android.graphics.Bitmap.class) {
+                                m.invoke(lineApi, bitmap, null);
+                                printed = true;
+                                Log.d(TAG, "Used printBitmap with null style");
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!printed) {
+                    Log.e(TAG, "No suitable printBitmap method found");
+                }
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("printBitmap", android.graphics.Bitmap.class, Object.class)
+                    .invoke(sunmiAidlService, bitmap, null);
+            }
+            
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "printBitmap error", e);
+            call.reject("Failed to print bitmap: " + e.getMessage(), e);
+        }
     }
 
     @PluginMethod
@@ -519,13 +1006,41 @@ public class SunmiPrinterPlugin extends Plugin {
         try {
             if (activePrinterType == PrinterType.SUNMI) {
                 Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
-                lineApi.getClass().getMethod("printBlankLines", int.class).invoke(lineApi, lines);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < lines; i++) {
+                    sb.append("\n");
+                }
+                // Use dynamic method lookup
+                boolean printed = false;
+                for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                    if (m.getName().equals("printText") && m.getParameterCount() == 2) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params[0] == String.class) {
+                            m.invoke(lineApi, sb.toString(), null);
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!printed) {
+                    for (java.lang.reflect.Method m : lineApi.getClass().getMethods()) {
+                        if (m.getName().equals("printText") && m.getParameterCount() == 1) {
+                            m.invoke(lineApi, sb.toString());
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("lineWrap", int.class, Object.class)
+                    .invoke(sunmiAidlService, lines, null);
             } else {
                 writeEscPos(new byte[] { ESC_FEED_LINES[0], ESC_FEED_LINES[1], (byte) lines });
             }
             call.resolve();
         } catch (Exception e) {
-            call.reject("Failed to line wrap", e);
+            Log.e(TAG, "lineWrap error", e);
+            call.reject("Failed to line wrap: " + e.getMessage(), e);
         }
     }
 
@@ -537,6 +1052,9 @@ public class SunmiPrinterPlugin extends Plugin {
             if (activePrinterType == PrinterType.SUNMI) {
                 Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
                 lineApi.getClass().getMethod("autoOut").invoke(lineApi);
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("cutPaper", Object.class)
+                    .invoke(sunmiAidlService, (Object) null);
             } else {
                 writeEscPos(new byte[] { 0x1B, 0x64, 0x05 }); // Feed 5 lines
                 writeEscPos(ESC_CUT_PAPER);
@@ -555,6 +1073,9 @@ public class SunmiPrinterPlugin extends Plugin {
             if (activePrinterType == PrinterType.SUNMI) {
                 Object api = sunmiPrinter.getClass().getMethod("cashDrawerApi").invoke(sunmiPrinter);
                 api.getClass().getMethod("open").invoke(api);
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                sunmiAidlService.getClass().getMethod("openDrawer", Object.class)
+                    .invoke(sunmiAidlService, (Object) null);
             } else {
                 writeEscPos(ESC_OPEN_DRAWER);
             }
@@ -572,6 +1093,12 @@ public class SunmiPrinterPlugin extends Plugin {
             if (activePrinterType == PrinterType.SUNMI) {
                 Object lineApi = sunmiPrinter.getClass().getMethod("lineApi").invoke(sunmiPrinter);
                 lineApi.getClass().getMethod("autoOut").invoke(lineApi);
+            } else if (activePrinterType == PrinterType.SUNMI_AIDL) {
+                // Line wrap to feed paper out, then cut
+                sunmiAidlService.getClass().getMethod("lineWrap", int.class, Object.class)
+                    .invoke(sunmiAidlService, 4, null);
+                sunmiAidlService.getClass().getMethod("cutPaper", Object.class)
+                    .invoke(sunmiAidlService, (Object) null);
             } else {
                 writeEscPos(new byte[] { 0x1B, 0x64, 0x05 }); // Feed
                 writeEscPos(ESC_CUT_PAPER);
