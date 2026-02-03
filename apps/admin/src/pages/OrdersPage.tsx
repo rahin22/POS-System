@@ -32,7 +32,7 @@ export function OrdersPage() {
     try {
       setIsLoading(true);
       const res = await fetchApi<{ success: boolean; data: { items: Order[] } }>(
-        `/api/orders?date=${dateFilter}&limit=100&includeItems=true`
+        `/api/orders?date=${dateFilter}&limit=100&includeItems=true&includeArchived=true`
       );
       if (res.success) setOrders(res.data.items);
     } catch (error) {
