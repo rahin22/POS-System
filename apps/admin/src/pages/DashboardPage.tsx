@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 interface DashboardStats {
-  todayOrders: number;
-  todayRevenue: number;
+  totalOrders: number;
+  totalRevenue: number;
   pendingOrders: number;
   totalProducts: number;
   averageOrderValue: number;
@@ -21,11 +21,14 @@ interface WeeklyData {
   revenue: number;
 }
 
+type TimePeriod = 'today' | 'week' | 'month' | 'year';
+
 export function DashboardPage() {
   const { fetchApi } = useAuth();
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('today');
   const [stats, setStats] = useState<DashboardStats>({
-    todayOrders: 0,
-    todayRevenue: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
     pendingOrders: 0,
     totalProducts: 0,
     averageOrderValue: 0,
@@ -36,54 +39,103 @@ export function DashboardPage() {
     topProducts: [],
     paymentMethods: {},
   });
-  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
+  const [chartData, setChartData] = useState<WeeklyData[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAllProducts, setShowAllProducts] = useState(false);
+
+  // Get date range based on time period
+  const getDateRange = (period: TimePeriod): string[] => {
+    const dates: string[] = [];
+    const now = new Date();
+    
+    if (period === 'today') {
+      dates.push(now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }));
+    } else if (period === 'week') {
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        dates.push(date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }));
+      }
+    } else if (period === 'month') {
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        dates.push(date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }));
+      }
+    } else if (period === 'year') {
+      for (let i = 364; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        dates.push(date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }));
+      }
+    }
+    return dates;
+  };
 
   useEffect(() => {
     const loadData = async () => {
+      setIsLoading(true);
       try {
-        // Get today's date in Sydney timezone
-        const sydneyDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+        const dates = getDateRange(timePeriod);
+        const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
         
-        // Get dates for last 7 days
-        const last7Days: string[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          last7Days.push(date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }));
+        // For chart data, limit to reasonable number of data points
+        let chartDates = dates;
+        if (timePeriod === 'month') {
+          // Show last 30 days but group by week for chart
+          chartDates = dates;
+        } else if (timePeriod === 'year') {
+          // For year, sample monthly
+          chartDates = [];
+          for (let i = 11; i >= 0; i--) {
+            const date = new Date();
+            date.setMonth(date.getMonth() - i);
+            date.setDate(1);
+            chartDates.push(date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }));
+          }
         }
-        
-        const [allOrdersRes, productsRes, ...weeklyOrdersRes] = await Promise.all([
-          // Get all orders for today
-          fetchApi<{ success: boolean; data: { items: any[]; total: number } }>(`/api/orders?date=${sydneyDate}&limit=500&includeItems=true`),
+
+        const [productsRes, ...ordersRes] = await Promise.all([
           fetchApi<{ success: boolean; data: any[] }>('/api/products'),
-          // Get orders for last 7 days
-          ...last7Days.map(date => 
-            fetchApi<{ success: boolean; data: { items: any[]; total: number } }>(`/api/orders?date=${date}&limit=500&includeArchived=true`)
+          ...dates.map(date => 
+            fetchApi<{ success: boolean; data: { items: any[]; total: number } }>(
+              `/api/orders?date=${date}&limit=500&includeArchived=true&includeItems=true`
+            )
           ),
         ]);
 
-        if (allOrdersRes.success) {
-          const allOrders = allOrdersRes.data.items;
-          const validOrders = allOrders.filter((o: any) => o.status !== 'cancelled');
-          
-          // Calculate revenue
-          const revenue = validOrders.reduce((sum: number, o: any) => sum + o.total, 0);
-          const pending = allOrders.filter((o: any) => o.status === 'received' || o.status === 'preparing').length;
-          const completed = allOrders.filter((o: any) => o.status === 'completed').length;
-          const cancelled = allOrders.filter((o: any) => o.status === 'cancelled').length;
-          const avgOrderValue = validOrders.length > 0 ? revenue / validOrders.length : 0;
+        // Combine all orders
+        const allOrders: any[] = [];
+        dates.forEach((date, index) => {
+          const res = ordersRes[index] as { success: boolean; data: { items: any[]; total: number } };
+          if (res?.success) {
+            allOrders.push(...res.data.items);
+          }
+        });
 
-          // Orders by type
-          const ordersByType: Record<string, number> = {};
-          validOrders.forEach((o: any) => {
-            const type = o.type.replace('_', ' ');
-            ordersByType[type] = (ordersByType[type] || 0) + 1;
-          });
+        const validOrders = allOrders.filter((o: any) => o.status !== 'cancelled');
+        
+        // Calculate stats
+        const revenue = validOrders.reduce((sum: number, o: any) => sum + o.total, 0);
+        const todayOrders = allOrders.filter((o: any) => 
+          o.createdAt.startsWith(todayDate)
+        );
+        const pending = todayOrders.filter((o: any) => o.status === 'received' || o.status === 'preparing').length;
+        const completed = validOrders.filter((o: any) => o.status === 'completed').length;
+        const cancelled = allOrders.filter((o: any) => o.status === 'cancelled').length;
+        const avgOrderValue = validOrders.length > 0 ? revenue / validOrders.length : 0;
 
-          // Orders by hour
-          const ordersByHour: Record<string, number> = {};
+        // Orders by type
+        const ordersByType: Record<string, number> = {};
+        validOrders.forEach((o: any) => {
+          const type = o.type.replace('_', ' ');
+          ordersByType[type] = (ordersByType[type] || 0) + 1;
+        });
+
+        // Orders by hour (only for today)
+        const ordersByHour: Record<string, number> = {};
+        if (timePeriod === 'today') {
           validOrders.forEach((o: any) => {
             const hour = new Date(o.createdAt).toLocaleTimeString('en-AU', { 
               hour: '2-digit', 
@@ -92,66 +144,86 @@ export function DashboardPage() {
             });
             ordersByHour[hour] = (ordersByHour[hour] || 0) + 1;
           });
-
-          // Top products
-          const productCounts: Record<string, { name: string; quantity: number; revenue: number }> = {};
-          validOrders.forEach((o: any) => {
-            o.items?.forEach((item: any) => {
-              const name = item.product?.name || 'Unknown';
-              if (!productCounts[name]) {
-                productCounts[name] = { name, quantity: 0, revenue: 0 };
-              }
-              productCounts[name].quantity += item.quantity;
-              productCounts[name].revenue += item.totalPrice;
-            });
-          });
-          const topProducts = Object.values(productCounts)
-            .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 5);
-
-          // Payment methods
-          const paymentMethods: Record<string, { count: number; total: number }> = {};
-          validOrders.forEach((o: any) => {
-            const method = o.paymentMethod || 'Unknown';
-            if (!paymentMethods[method]) {
-              paymentMethods[method] = { count: 0, total: 0 };
-            }
-            paymentMethods[method].count += 1;
-            paymentMethods[method].total += o.total;
-          });
-
-          setStats({
-            todayOrders: allOrdersRes.data.total,
-            todayRevenue: revenue,
-            pendingOrders: pending,
-            totalProducts: productsRes.data?.length || 0,
-            averageOrderValue: avgOrderValue,
-            completedOrders: completed,
-            cancelledOrders: cancelled,
-            ordersByType,
-            ordersByHour,
-            topProducts,
-            paymentMethods,
-          });
-
-          setRecentOrders(allOrders.slice(0, 10));
         }
 
-        // Process weekly data
-        const weekly: WeeklyData[] = last7Days.map((date, index) => {
-          const res = weeklyOrdersRes[index] as { success: boolean; data: { items: any[]; total: number } };
-          if (res?.success) {
-            const orders = res.data.items.filter((o: any) => o.status !== 'cancelled');
-            const revenue = orders.reduce((sum: number, o: any) => sum + o.total, 0);
-            return {
-              date,
-              orders: res.data.total,
-              revenue,
-            };
-          }
-          return { date, orders: 0, revenue: 0 };
+        // Top products
+        const productCounts: Record<string, { name: string; quantity: number; revenue: number }> = {};
+        validOrders.forEach((o: any) => {
+          o.items?.forEach((item: any) => {
+            const name = item.product?.name || 'Unknown';
+            if (!productCounts[name]) {
+              productCounts[name] = { name, quantity: 0, revenue: 0 };
+            }
+            productCounts[name].quantity += item.quantity;
+            productCounts[name].revenue += item.totalPrice;
+          });
         });
-        setWeeklyData(weekly);
+        const topProducts = Object.values(productCounts)
+          .sort((a, b) => b.quantity - a.quantity);
+
+        // Payment methods
+        const paymentMethods: Record<string, { count: number; total: number }> = {};
+        validOrders.forEach((o: any) => {
+          const method = o.paymentMethod || 'Unknown';
+          if (!paymentMethods[method]) {
+            paymentMethods[method] = { count: 0, total: 0 };
+          }
+          paymentMethods[method].count += 1;
+          paymentMethods[method].total += o.total;
+        });
+
+        setStats({
+          totalOrders: allOrders.length,
+          totalRevenue: revenue,
+          pendingOrders: pending,
+          totalProducts: productsRes.data?.length || 0,
+          averageOrderValue: avgOrderValue,
+          completedOrders: completed,
+          cancelledOrders: cancelled,
+          ordersByType,
+          ordersByHour,
+          topProducts,
+          paymentMethods,
+        });
+
+        // Set recent orders (today's only)
+        setRecentOrders(todayOrders.slice(0, 10));
+
+        // Process chart data
+        if (timePeriod === 'year') {
+          // Group by month for year view
+          const monthlyData: Record<string, { orders: number; revenue: number }> = {};
+          dates.forEach((date, index) => {
+            const monthKey = date.substring(0, 7); // YYYY-MM
+            if (!monthlyData[monthKey]) {
+              monthlyData[monthKey] = { orders: 0, revenue: 0 };
+            }
+            const res = ordersRes[index] as { success: boolean; data: { items: any[]; total: number } };
+            if (res?.success) {
+              const orders = res.data.items.filter((o: any) => o.status !== 'cancelled');
+              monthlyData[monthKey].orders += res.data.total;
+              monthlyData[monthKey].revenue += orders.reduce((sum: number, o: any) => sum + o.total, 0);
+            }
+          });
+          const chartDataArr = Object.entries(monthlyData).map(([date, data]) => ({
+            date: date + '-01',
+            orders: data.orders,
+            revenue: data.revenue,
+          }));
+          setChartData(chartDataArr);
+        } else {
+          // Daily data for other periods
+          const chartDataArr: WeeklyData[] = dates.map((date, index) => {
+            const res = ordersRes[index] as { success: boolean; data: { items: any[]; total: number } };
+            if (res?.success) {
+              const orders = res.data.items.filter((o: any) => o.status !== 'cancelled');
+              const revenue = orders.reduce((sum: number, o: any) => sum + o.total, 0);
+              return { date, orders: res.data.total, revenue };
+            }
+            return { date, orders: 0, revenue: 0 };
+          });
+          setChartData(chartDataArr);
+        }
 
       } catch (error) {
         console.error('Failed to load dashboard:', error);
@@ -161,12 +233,27 @@ export function DashboardPage() {
     };
 
     loadData();
-  }, [fetchApi]);
+  }, [fetchApi, timePeriod]);
 
   const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
+    if (timePeriod === 'year') {
+      return date.toLocaleDateString('en-AU', { month: 'short' });
+    }
+    if (timePeriod === 'month') {
+      return date.toLocaleDateString('en-AU', { day: 'numeric' });
+    }
     return date.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
+  };
+
+  const getPeriodLabel = () => {
+    switch (timePeriod) {
+      case 'today': return "Today's";
+      case 'week': return 'This Week';
+      case 'month': return 'This Month';
+      case 'year': return 'This Year';
+    }
   };
 
   if (isLoading) {
@@ -177,42 +264,54 @@ export function DashboardPage() {
     );
   }
 
-  const maxWeeklyRevenue = Math.max(...weeklyData.map(d => d.revenue), 1);
-  const maxWeeklyOrders = Math.max(...weeklyData.map(d => d.orders), 1);
+  const maxChartRevenue = Math.max(...chartData.map(d => d.revenue), 1);
+  const maxChartOrders = Math.max(...chartData.map(d => d.orders), 1);
+
+  // For month view, only show every 5th label
+  const shouldShowLabel = (index: number) => {
+    if (timePeriod === 'month') return index % 5 === 0;
+    return true;
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          {new Date().toLocaleDateString('en-AU', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
-            timeZone: 'Australia/Sydney'
-          })}
-        </p>
+        <div className="flex items-center gap-2">
+          {(['today', 'week', 'month', 'year'] as TimePeriod[]).map((period) => (
+            <button
+              key={period}
+              onClick={() => setTimePeriod(period)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                timePeriod === period
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {period === 'today' ? 'Today' : period === 'week' ? 'Week' : period === 'month' ? 'Month' : 'Year'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
-          title="Today's Revenue"
-          value={formatCurrency(stats.todayRevenue)}
+          title={`${getPeriodLabel()} Revenue`}
+          value={formatCurrency(stats.totalRevenue)}
           icon="💰"
           color="green"
-          subtitle={`${stats.todayOrders} orders`}
+          subtitle={`${stats.totalOrders} orders`}
         />
         <StatCard
           title="Avg Order Value"
           value={formatCurrency(stats.averageOrderValue)}
           icon="📊"
           color="blue"
-          subtitle={stats.todayOrders > 0 ? 'per order' : 'No orders yet'}
+          subtitle={stats.totalOrders > 0 ? 'per order' : 'No orders yet'}
         />
         <StatCard
-          title="Pending"
+          title="Pending Today"
           value={stats.pendingOrders.toString()}
           icon="⏳"
           color="yellow"
@@ -223,66 +322,88 @@ export function DashboardPage() {
           value={stats.completedOrders.toString()}
           icon="✅"
           color="purple"
-          subtitle={stats.cancelledOrders > 0 ? `${stats.cancelledOrders} cancelled` : 'today'}
+          subtitle={stats.cancelledOrders > 0 ? `${stats.cancelledOrders} cancelled` : getPeriodLabel().toLowerCase()}
         />
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Revenue Chart */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Last 7 Days Revenue</h2>
-          <div className="flex items-end gap-2 h-40">
-            {weeklyData.map((day, index) => (
-              <div key={day.date} className="flex-1 flex flex-col items-center">
-                <div className="w-full flex flex-col items-center">
-                  <span className="text-xs text-gray-500 mb-1">{formatCurrency(day.revenue)}</span>
-                  <div 
-                    className={`w-full rounded-t transition-all ${
-                      index === weeklyData.length - 1 ? 'bg-primary-500' : 'bg-primary-200'
-                    }`}
-                    style={{ height: `${(day.revenue / maxWeeklyRevenue) * 100}px`, minHeight: '4px' }}
-                  />
+      {chartData.length > 1 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue Chart */}
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              Revenue {timePeriod === 'year' ? '(Monthly)' : timePeriod === 'month' ? '(Last 30 Days)' : '(Last 7 Days)'}
+            </h2>
+            <div className="flex items-end gap-1 h-40 overflow-x-auto pb-2">
+              {chartData.map((day, index) => (
+                <div key={day.date} className="flex flex-col items-center" style={{ minWidth: timePeriod === 'month' ? '20px' : '40px', flex: 1 }}>
+                  <div className="w-full flex flex-col items-center">
+                    {timePeriod !== 'month' && (
+                      <span className="text-xs text-gray-500 mb-1">{formatCurrency(day.revenue)}</span>
+                    )}
+                    <div 
+                      className={`w-full rounded-t transition-all ${
+                        index === chartData.length - 1 ? 'bg-primary-500' : 'bg-primary-200'
+                      }`}
+                      style={{ height: `${(day.revenue / maxChartRevenue) * 100}px`, minHeight: '4px' }}
+                      title={`${formatDate(day.date)}: ${formatCurrency(day.revenue)}`}
+                    />
+                  </div>
+                  {shouldShowLabel(index) && (
+                    <span className="text-xs text-gray-600 mt-2 whitespace-nowrap">{formatDate(day.date)}</span>
+                  )}
                 </div>
-                <span className="text-xs text-gray-600 mt-2">{formatDate(day.date)}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="mt-2 text-center text-sm text-gray-500">
+              Total: {formatCurrency(chartData.reduce((sum, d) => sum + d.revenue, 0))}
+            </div>
           </div>
-        </div>
 
-        {/* Weekly Orders Chart */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Last 7 Days Orders</h2>
-          <div className="flex items-end gap-2 h-40">
-            {weeklyData.map((day, index) => (
-              <div key={day.date} className="flex-1 flex flex-col items-center">
-                <div className="w-full flex flex-col items-center">
-                  <span className="text-xs text-gray-500 mb-1">{day.orders}</span>
-                  <div 
-                    className={`w-full rounded-t transition-all ${
-                      index === weeklyData.length - 1 ? 'bg-blue-500' : 'bg-blue-200'
-                    }`}
-                    style={{ height: `${(day.orders / maxWeeklyOrders) * 100}px`, minHeight: '4px' }}
-                  />
+          {/* Orders Chart */}
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              Orders {timePeriod === 'year' ? '(Monthly)' : timePeriod === 'month' ? '(Last 30 Days)' : '(Last 7 Days)'}
+            </h2>
+            <div className="flex items-end gap-1 h-40 overflow-x-auto pb-2">
+              {chartData.map((day, index) => (
+                <div key={day.date} className="flex flex-col items-center" style={{ minWidth: timePeriod === 'month' ? '20px' : '40px', flex: 1 }}>
+                  <div className="w-full flex flex-col items-center">
+                    {timePeriod !== 'month' && (
+                      <span className="text-xs text-gray-500 mb-1">{day.orders}</span>
+                    )}
+                    <div 
+                      className={`w-full rounded-t transition-all ${
+                        index === chartData.length - 1 ? 'bg-blue-500' : 'bg-blue-200'
+                      }`}
+                      style={{ height: `${(day.orders / maxChartOrders) * 100}px`, minHeight: '4px' }}
+                      title={`${formatDate(day.date)}: ${day.orders} orders`}
+                    />
+                  </div>
+                  {shouldShowLabel(index) && (
+                    <span className="text-xs text-gray-600 mt-2 whitespace-nowrap">{formatDate(day.date)}</span>
+                  )}
                 </div>
-                <span className="text-xs text-gray-600 mt-2">{formatDate(day.date)}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="mt-2 text-center text-sm text-gray-500">
+              Total: {chartData.reduce((sum, d) => sum + d.orders, 0)} orders
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Secondary Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Order Types */}
         <div className="card">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Orders by Type</h2>
           {Object.keys(stats.ordersByType).length === 0 ? (
-            <p className="text-gray-500 text-sm">No orders today</p>
+            <p className="text-gray-500 text-sm">No orders in this period</p>
           ) : (
             <div className="space-y-3">
               {Object.entries(stats.ordersByType).map(([type, count]) => {
-                const percentage = stats.todayOrders > 0 ? (count / stats.todayOrders) * 100 : 0;
+                const percentage = stats.totalOrders > 0 ? (count / stats.totalOrders) * 100 : 0;
                 return (
                   <div key={type}>
                     <div className="flex justify-between text-sm mb-1">
@@ -306,7 +427,7 @@ export function DashboardPage() {
         <div className="card">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Payment Methods</h2>
           {Object.keys(stats.paymentMethods).length === 0 ? (
-            <p className="text-gray-500 text-sm">No orders today</p>
+            <p className="text-gray-500 text-sm">No orders in this period</p>
           ) : (
             <div className="space-y-3">
               {Object.entries(stats.paymentMethods).map(([method, data]) => (
@@ -326,38 +447,50 @@ export function DashboardPage() {
             </div>
           )}
         </div>
-
-        {/* Top Products */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Products Today</h2>
-          {stats.topProducts.length === 0 ? (
-            <p className="text-gray-500 text-sm">No orders today</p>
-          ) : (
-            <div className="space-y-3">
-              {stats.topProducts.map((product, index) => (
-                <div key={product.name} className="flex items-center gap-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                    index === 0 ? 'bg-yellow-100 text-yellow-800' :
-                    index === 1 ? 'bg-gray-100 text-gray-800' :
-                    index === 2 ? 'bg-orange-100 text-orange-800' :
-                    'bg-gray-50 text-gray-600'
-                  }`}>
-                    {index + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{product.name}</p>
-                    <p className="text-xs text-gray-500">{product.quantity} sold</p>
-                  </div>
-                  <span className="text-sm font-semibold">{formatCurrency(product.revenue)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Busiest Hours */}
-      {Object.keys(stats.ordersByHour).length > 0 && (
+      {/* Top Products Section */}
+      <div className="card">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">
+            Top Products {getPeriodLabel() !== "Today's" ? `(${getPeriodLabel()})` : 'Today'}
+          </h2>
+          {stats.topProducts.length > 5 && (
+            <button
+              onClick={() => setShowAllProducts(!showAllProducts)}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              {showAllProducts ? 'Show Less' : `View All (${stats.topProducts.length})`}
+            </button>
+          )}
+        </div>
+        {stats.topProducts.length === 0 ? (
+          <p className="text-gray-500 text-sm">No orders in this period</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(showAllProducts ? stats.topProducts : stats.topProducts.slice(0, 6)).map((product, index) => (
+              <div key={product.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                  index === 1 ? 'bg-gray-200 text-gray-800' :
+                  index === 2 ? 'bg-orange-100 text-orange-800' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {index + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{product.name}</p>
+                  <p className="text-xs text-gray-500">{product.quantity} sold</p>
+                </div>
+                <span className="text-sm font-semibold text-green-600">{formatCurrency(product.revenue)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Busiest Hours (only for today) */}
+      {timePeriod === 'today' && Object.keys(stats.ordersByHour).length > 0 && (
         <div className="card">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Orders by Hour</h2>
           <div className="flex items-end gap-1 h-24 overflow-x-auto pb-2">
@@ -384,9 +517,9 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Recent Orders */}
+      {/* Recent Orders (today's orders) */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Orders</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Orders (Today)</h2>
         {recentOrders.length === 0 ? (
           <p className="text-gray-500">No orders today</p>
         ) : (
