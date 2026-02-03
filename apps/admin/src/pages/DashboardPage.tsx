@@ -107,7 +107,7 @@ export function DashboardPage() {
 
         // Combine all orders
         const allOrders: any[] = [];
-        dates.forEach((date, index) => {
+        dates.forEach((_date, index) => {
           const res = ordersRes[index] as { success: boolean; data: { items: any[]; total: number } };
           if (res?.success) {
             allOrders.push(...res.data.items);
