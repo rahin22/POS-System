@@ -65,6 +65,35 @@ export function ProductsPage() {
     loadData();
   }, [fetchApi]);
 
+  // Filter products with useMemo
+  const filteredProducts = useMemo(() => {
+    let result = products;
+
+    // Category filter
+    if (selectedCategoryId !== 'all') {
+      result = result.filter(p => p.categoryId === selectedCategoryId);
+    }
+
+    // Availability filter
+    if (availabilityFilter === 'available') {
+      result = result.filter(p => p.isAvailable);
+    } else if (availabilityFilter === 'unavailable') {
+      result = result.filter(p => !p.isAvailable);
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(p => 
+        p.name.toLowerCase().includes(query) ||
+        p.description?.toLowerCase().includes(query) ||
+        p.category?.name.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [products, selectedCategoryId, availabilityFilter, searchQuery]);
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
@@ -145,34 +174,6 @@ export function ProductsPage() {
   if (isLoading) {
     return <div className="animate-pulse">Loading...</div>;
   }
-
-  const filteredProducts = useMemo(() => {
-    let result = products;
-
-    // Category filter
-    if (selectedCategoryId !== 'all') {
-      result = result.filter(p => p.categoryId === selectedCategoryId);
-    }
-
-    // Availability filter
-    if (availabilityFilter === 'available') {
-      result = result.filter(p => p.isAvailable);
-    } else if (availabilityFilter === 'unavailable') {
-      result = result.filter(p => !p.isAvailable);
-    }
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query) ||
-        p.category?.name.toLowerCase().includes(query)
-      );
-    }
-
-    return result;
-  }, [products, selectedCategoryId, availabilityFilter, searchQuery]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
