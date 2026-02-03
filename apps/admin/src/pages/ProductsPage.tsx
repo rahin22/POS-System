@@ -284,6 +284,7 @@ function ProductModal({
   const [categoryId, setCategoryId] = useState(product?.categoryId || categories[0]?.id || '');
   const [description, setDescription] = useState(product?.description || '');
   const [imageUrl, setImageUrl] = useState(product?.imageUrl || '');
+  const [sortOrder, setSortOrder] = useState((product as any)?.sortOrder?.toString() || '0');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.imageUrl || null);
   const [uploading, setUploading] = useState(false);
@@ -372,6 +373,7 @@ function ProductModal({
       categoryId,
       description: description || undefined,
       imageUrl: finalImageUrl || undefined,
+      sortOrder: parseInt(sortOrder),
     };
     
     console.log('Saving product with data:', productData);
@@ -518,6 +520,18 @@ function ProductModal({
                 ))
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
+            <input
+              type="number"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              placeholder="0"
+            />
+            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
           </div>
 
           <div className="flex gap-3 pt-4">

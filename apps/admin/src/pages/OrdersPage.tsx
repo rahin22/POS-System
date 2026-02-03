@@ -23,7 +23,10 @@ export function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  // Use Sydney timezone for default date
+  const [dateFilter, setDateFilter] = useState(
+    new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  );
 
   const loadOrders = async () => {
     try {

@@ -15,13 +15,21 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // Date filter
+    // Date filter - use Sydney timezone
     let dateFilter = {};
     if (date) {
-      const startDate = new Date(date as string);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(date as string);
-      endDate.setHours(23, 59, 59, 999);
+      // Parse the date and convert to Sydney timezone boundaries
+      const dateStr = date as string; // Format: YYYY-MM-DD
+      
+      // Sydney is UTC+10 (AEST) or UTC+11 (AEDT)
+      // We need to find midnight in Sydney and convert to UTC
+      const sydneyOffset = 11 * 60; // AEDT offset in minutes (adjust to 10 for AEST if needed)
+      
+      // Create start of day in Sydney (midnight)
+      const startDate = new Date(`${dateStr}T00:00:00+11:00`);
+      // Create end of day in Sydney (23:59:59.999)
+      const endDate = new Date(`${dateStr}T23:59:59.999+11:00`);
+      
       dateFilter = {
         createdAt: {
           gte: startDate,

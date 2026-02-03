@@ -109,7 +109,7 @@ function AppContent() {
                 : 'hover:bg-primary-600'
             }`}
           >
-            Printers
+            Settings
           </button>
         </div>
 

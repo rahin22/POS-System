@@ -15,3 +15,4 @@ apps/customer/dist
 apps/backend/migrate-data.js
 apps/backend/migrate-storage.js
 apps/backend/update-image-urls.js
+apps/android/.env

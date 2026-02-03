@@ -22,26 +22,33 @@ export function DashboardPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const today = new Date().toISOString().split('T')[0];
+        // Get today's date in Sydney timezone
+        const sydneyDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
         
-        const [ordersRes, productsRes] = await Promise.all([
-          fetchApi<{ success: boolean; data: { items: any[]; total: number } }>(`/api/orders?date=${today}&limit=10`),
+        const [allOrdersRes, recentOrdersRes, productsRes] = await Promise.all([
+          // Get all orders for accurate stats
+          fetchApi<{ success: boolean; data: { items: any[]; total: number } }>(`/api/orders?date=${sydneyDate}&limit=500`),
+          // Get recent orders for display
+          fetchApi<{ success: boolean; data: { items: any[]; total: number } }>(`/api/orders?date=${sydneyDate}&limit=5`),
           fetchApi<{ success: boolean; data: any[] }>('/api/products'),
         ]);
 
-        if (ordersRes.success) {
-          const orders = ordersRes.data.items;
-          const revenue = orders.reduce((sum: number, o: any) => sum + o.total, 0);
-          const pending = orders.filter((o: any) => o.status === 'pending' || o.status === 'preparing').length;
+        if (allOrdersRes.success) {
+          const allOrders = allOrdersRes.data.items;
+          // Calculate revenue from ALL orders today (excluding cancelled)
+          const revenue = allOrders
+            .filter((o: any) => o.status !== 'cancelled')
+            .reduce((sum: number, o: any) => sum + o.total, 0);
+          const pending = allOrders.filter((o: any) => o.status === 'received' || o.status === 'preparing').length;
 
           setStats({
-            todayOrders: ordersRes.data.total,
+            todayOrders: allOrdersRes.data.total,
             todayRevenue: revenue,
             pendingOrders: pending,
             totalProducts: productsRes.data?.length || 0,
           });
 
-          setRecentOrders(orders.slice(0, 5));
+          setRecentOrders(recentOrdersRes.data.items);
         }
       } catch (error) {
         console.error('Failed to load dashboard:', error);

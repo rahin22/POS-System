@@ -131,7 +131,7 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
     }
   };
 
-  const handleSaveProduct = async (data: any) => {
+  const handleSaveProduct = async (data: any, modifierGroupIds: string[]) => {
     try {
       if (editingItem) {
         const res = await fetchApi<{ success: boolean; data: Product }>(`/api/products/${editingItem.id}`, {
@@ -139,6 +139,11 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
           body: JSON.stringify(data),
         });
         if (res.success) {
+          // Update modifier groups
+          await fetchApi(`/api/products/${editingItem.id}/modifier-groups`, {
+            method: 'PUT',
+            body: JSON.stringify({ modifierGroupIds }),
+          });
           setProducts(products.map((p) => (p.id === editingItem.id ? res.data : p)));
         }
       } else {
@@ -147,6 +152,13 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
           body: JSON.stringify(data),
         });
         if (res.success) {
+          // Set modifier groups for new product
+          if (modifierGroupIds.length > 0) {
+            await fetchApi(`/api/products/${res.data.id}/modifier-groups`, {
+              method: 'PUT',
+              body: JSON.stringify({ modifierGroupIds }),
+            });
+          }
           setProducts([...products, res.data]);
         }
       }
@@ -691,6 +703,7 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
         <ProductModal
           product={editingItem}
           categories={categories}
+          modifierGroups={modifierGroups}
           currencySymbol={currencySymbol}
           defaultCategoryId={selectedCategoryFilter !== 'all' ? selectedCategoryFilter : undefined}
           onSave={handleSaveProduct}
@@ -733,13 +746,14 @@ export function MenuPage({ currencySymbol }: MenuPageProps) {
 interface ProductModalProps {
   product: Product | null;
   categories: Category[];
+  modifierGroups: ModifierGroup[];
   currencySymbol: string;
   defaultCategoryId?: string;
-  onSave: (data: any) => void;
+  onSave: (data: any, modifierGroupIds: string[]) => void;
   onClose: () => void;
 }
 
-function ProductModal({ product, categories, currencySymbol, defaultCategoryId, onSave, onClose }: ProductModalProps) {
+function ProductModal({ product, categories, modifierGroups, currencySymbol, defaultCategoryId, onSave, onClose }: ProductModalProps) {
   const [name, setName] = useState(product?.name || '');
   const [description, setDescription] = useState(product?.description || '');
   const [price, setPrice] = useState(product?.price?.toString() || '');
@@ -747,9 +761,21 @@ function ProductModal({ product, categories, currencySymbol, defaultCategoryId, 
   const [categoryId, setCategoryId] = useState(product?.categoryId || defaultCategoryId || categories[0]?.id || '');
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
   const [imageUrl, setImageUrl] = useState(product?.imageUrl || '');
+  const [sortOrder, setSortOrder] = useState((product as any)?.sortOrder?.toString() || '0');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.imageUrl || null);
   const [uploading, setUploading] = useState(false);
+  const [selectedModifierGroups, setSelectedModifierGroups] = useState<string[]>(
+    (product as any)?.modifierGroups?.map((mg: any) => mg.id) || []
+  );
+
+  const handleModifierGroupToggle = (groupId: string) => {
+    setSelectedModifierGroups((prev) =>
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [...prev, groupId]
+    );
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -816,19 +842,21 @@ function ProductModal({ product, categories, currencySymbol, defaultCategoryId, 
       categoryId,
       isAvailable,
       imageUrl: finalImageUrl || undefined,
-    });
+      sortOrder: parseInt(sortOrder),
+    }, selectedModifierGroups);
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">
             {product ? 'Edit Product' : 'Add Product'}
           </h2>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 space-y-4 overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
             <input
@@ -917,6 +945,32 @@ function ProductModal({ product, categories, currencySymbol, defaultCategoryId, 
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Modifier Groups
+            </label>
+            <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+              {modifierGroups.length === 0 ? (
+                <p className="text-sm text-gray-500">No modifier groups available</p>
+              ) : (
+                modifierGroups.map(group => (
+                  <label key={group.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                    <input
+                      type="checkbox"
+                      checked={selectedModifierGroups.includes(group.id)}
+                      onChange={() => handleModifierGroupToggle(group.id)}
+                      className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700 flex-1">{group.name}</span>
+                    <span className="text-xs text-gray-500">
+                      {group.modifiers?.length || 0} modifier{group.modifiers?.length !== 1 ? 's' : ''}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
             <select
               value={categoryId}
@@ -945,7 +999,22 @@ function ProductModal({ product, categories, currencySymbol, defaultCategoryId, 
             </label>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
+            <input
+              type="number"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              placeholder="0"
+            />
+            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
+          </div>
+
+          </div>
+
+          <div className="p-6 border-t border-gray-200 bg-white">
+            <div className="flex gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -960,6 +1029,7 @@ function ProductModal({ product, categories, currencySymbol, defaultCategoryId, 
             >
               {uploading ? 'Uploading...' : product ? 'Update' : 'Create'}
             </button>
+            </div>
           </div>
         </form>
       </div>
