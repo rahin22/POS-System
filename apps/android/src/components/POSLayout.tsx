@@ -161,13 +161,27 @@ export function POSLayout() {
           // Get order type - API returns 'type' with underscore format (dine_in), convert to display format
           const orderType = (response.data.type || 'takeaway').replace('_', '-');
           
+          // Map API items to print format
+          // API returns: { product: { name }, quantity, unitPrice, modifiers: [{ name, price }] }
+          // Print expects: { name, quantity, price, modifiers: [{ name, price }] }
+          const printItems = (response.data.items || []).map((item: any) => ({
+            name: item.product?.name || item.productName || 'Unknown Item',
+            quantity: item.quantity || 1,
+            price: item.unitPrice || item.price || 0,
+            notes: item.notes,
+            modifiers: (item.modifiers || []).map((m: any) => ({
+              name: m.name,
+              price: m.price || 0,
+            })),
+          }));
+          
           // Print customer receipt via Sunmi printer
           const printResult = await printer.printReceipt({
             orderId: response.data.id,
             orderNumber: response.data.orderNumber,
             customerName: response.data.customerName,
             orderType: orderType,
-            items: response.data.items,
+            items: printItems,
             subtotal: response.data.subtotal,
             gstAmount: response.data.tax,
             total: response.data.total,

@@ -216,8 +216,20 @@ router.post('/', async (req: AuthRequest, res) => {
         }
       }
 
-      const unitPrice = product.price + modifierTotal;
-      const totalPrice = unitPrice * item.quantity;
+      let unitPrice: number;
+      let totalPrice: number;
+
+      // Check if this is a weight-based item with pre-calculated prices
+      if (item.isWeightBased && item.unitPrice !== undefined && item.totalPrice !== undefined) {
+        // Use pre-calculated prices from frontend for weight-based items
+        unitPrice = item.unitPrice;
+        totalPrice = item.totalPrice;
+      } else {
+        // Standard quantity-based pricing
+        unitPrice = product.price + modifierTotal;
+        totalPrice = unitPrice * item.quantity;
+      }
+      
       subtotal += totalPrice;
 
       orderItems.push({

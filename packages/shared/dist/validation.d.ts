@@ -98,16 +98,31 @@ export declare const orderItemSchema: z.ZodObject<{
     quantity: z.ZodNumber;
     notes: z.ZodOptional<z.ZodString>;
     modifierIds: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    isWeightBased: z.ZodOptional<z.ZodBoolean>;
+    weightKg: z.ZodOptional<z.ZodNumber>;
+    pricePerKg: z.ZodOptional<z.ZodNumber>;
+    unitPrice: z.ZodOptional<z.ZodNumber>;
+    totalPrice: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     productId: string;
     quantity: number;
+    pricePerKg?: number | undefined;
     notes?: string | undefined;
     modifierIds?: string[] | undefined;
+    isWeightBased?: boolean | undefined;
+    weightKg?: number | undefined;
+    unitPrice?: number | undefined;
+    totalPrice?: number | undefined;
 }, {
     productId: string;
     quantity: number;
+    pricePerKg?: number | undefined;
     notes?: string | undefined;
     modifierIds?: string[] | undefined;
+    isWeightBased?: boolean | undefined;
+    weightKg?: number | undefined;
+    unitPrice?: number | undefined;
+    totalPrice?: number | undefined;
 }>;
 export declare const createOrderSchema: z.ZodObject<{
     type: z.ZodEnum<["dine-in", "takeaway", "delivery", "online"]>;
@@ -116,16 +131,31 @@ export declare const createOrderSchema: z.ZodObject<{
         quantity: z.ZodNumber;
         notes: z.ZodOptional<z.ZodString>;
         modifierIds: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        isWeightBased: z.ZodOptional<z.ZodBoolean>;
+        weightKg: z.ZodOptional<z.ZodNumber>;
+        pricePerKg: z.ZodOptional<z.ZodNumber>;
+        unitPrice: z.ZodOptional<z.ZodNumber>;
+        totalPrice: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         productId: string;
         quantity: number;
+        pricePerKg?: number | undefined;
         notes?: string | undefined;
         modifierIds?: string[] | undefined;
+        isWeightBased?: boolean | undefined;
+        weightKg?: number | undefined;
+        unitPrice?: number | undefined;
+        totalPrice?: number | undefined;
     }, {
         productId: string;
         quantity: number;
+        pricePerKg?: number | undefined;
         notes?: string | undefined;
         modifierIds?: string[] | undefined;
+        isWeightBased?: boolean | undefined;
+        weightKg?: number | undefined;
+        unitPrice?: number | undefined;
+        totalPrice?: number | undefined;
     }>, "many">;
     customerName: z.ZodOptional<z.ZodString>;
     customerPhone: z.ZodOptional<z.ZodString>;
@@ -152,8 +182,13 @@ export declare const createOrderSchema: z.ZodObject<{
     items: {
         productId: string;
         quantity: number;
+        pricePerKg?: number | undefined;
         notes?: string | undefined;
         modifierIds?: string[] | undefined;
+        isWeightBased?: boolean | undefined;
+        weightKg?: number | undefined;
+        unitPrice?: number | undefined;
+        totalPrice?: number | undefined;
     }[];
     notes?: string | undefined;
     customerName?: string | undefined;
@@ -170,8 +205,13 @@ export declare const createOrderSchema: z.ZodObject<{
     items: {
         productId: string;
         quantity: number;
+        pricePerKg?: number | undefined;
         notes?: string | undefined;
         modifierIds?: string[] | undefined;
+        isWeightBased?: boolean | undefined;
+        weightKg?: number | undefined;
+        unitPrice?: number | undefined;
+        totalPrice?: number | undefined;
     }[];
     notes?: string | undefined;
     customerName?: string | undefined;

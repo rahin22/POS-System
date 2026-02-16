@@ -220,6 +220,12 @@ export function useCart(vatRate: number = 10) {
       quantity: item.quantity,
       notes: item.notes,
       modifierIds: item.modifiers.map((m) => m.id),
+      // Include weight-based pricing info so backend can use pre-calculated prices
+      isWeightBased: item.isWeightBased,
+      weightKg: item.weightKg,
+      pricePerKg: item.pricePerKg,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
     }));
 
     const response = await fetchApi<{ success: boolean; data: any; error?: string }>(

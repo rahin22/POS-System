@@ -50,6 +50,12 @@ export const orderItemSchema = z.object({
   quantity: z.number().int().min(1),
   notes: z.string().max(200).optional(),
   modifierIds: z.array(z.string()).optional(),
+  // Weight-based item fields (optional, for pre-calculated prices)
+  isWeightBased: z.boolean().optional(),
+  weightKg: z.number().optional(),
+  pricePerKg: z.number().optional(),
+  unitPrice: z.number().optional(),
+  totalPrice: z.number().optional(),
 });
 
 export const createOrderSchema = z.object({
