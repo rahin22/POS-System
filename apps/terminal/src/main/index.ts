@@ -24,6 +24,7 @@ const store = new Store({
     eftposRegisterID: '' as string,
     eftposRegisterName: 'Main Register' as string,
     eftposBusinessName: 'Al Taher Kebabs' as string,
+    eftposPrintReceipt: true,
   },
 });
 
@@ -240,6 +241,7 @@ ipcMain.handle('get-settings', () => {
     eftposRegisterID: store.get('eftposRegisterID'),
     eftposRegisterName: store.get('eftposRegisterName'),
     eftposBusinessName: store.get('eftposBusinessName'),
+    eftposPrintReceipt: store.get('eftposPrintReceipt'),
   };
 });
 
@@ -715,8 +717,8 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       addText(`Paid by: ${paymentMethod.toUpperCase()}`);
       addBytes(LF);
 
-      // EFTPOS receipt block (regulatory requirement for card payments)
-      if (orderData.eftposReceipt) {
+      // EFTPOS receipt block — only printed if enabled in settings
+      if (orderData.eftposReceipt && store.get('eftposPrintReceipt')) {
         addText('--------------------------------');
         addBytes(LF);
         // Left align, normal size

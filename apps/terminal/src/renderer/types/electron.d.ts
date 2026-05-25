@@ -18,6 +18,7 @@ declare global {
         eftposRegisterID: string;
         eftposRegisterName: string;
         eftposBusinessName: string;
+        eftposPrintReceipt: boolean;
       }>;
       setSettings: (settings: Record<string, any>) => Promise<boolean>;
       toggleFullscreen: () => Promise<boolean>;

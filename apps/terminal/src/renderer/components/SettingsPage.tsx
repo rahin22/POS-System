@@ -26,6 +26,7 @@ export function SettingsPage() {
     eftposEnvironment: 'prod' as 'dev' | 'prod',
     eftposRegisterName: 'Main Register',
     eftposBusinessName: 'Al Taher Kebabs',
+    eftposPrintReceipt: true,
   });
   const [eftposRegisterID, setEftposRegisterID] = useState('');
   const [pairingCode, setPairingCode] = useState('');
@@ -70,6 +71,7 @@ export function SettingsPage() {
         eftposEnvironment: s.eftposEnvironment,
         eftposRegisterName: s.eftposRegisterName,
         eftposBusinessName: s.eftposBusinessName,
+        eftposPrintReceipt: s.eftposPrintReceipt,
       });
       setEftposRegisterID(s.eftposRegisterID || '');
     }
@@ -485,6 +487,24 @@ export function SettingsPage() {
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                     settings.eftposEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Print EFTPOS receipt block */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Print EFTPOS Receipt Block</label>
+                  <p className="text-sm text-gray-500">Append terminal receipt to customer receipt. Disable if terminal prints its own copy.</p>
+                </div>
+                <button
+                  onClick={() => setSettings({ ...settings, eftposPrintReceipt: !settings.eftposPrintReceipt })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.eftposPrintReceipt ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.eftposPrintReceipt ? 'translate-x-6' : 'translate-x-1'
                   }`} />
                 </button>
               </div>
