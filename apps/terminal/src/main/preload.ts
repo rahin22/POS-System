@@ -46,6 +46,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     total: (total: number) => ipcRenderer.invoke('vfd-total', total),
     clear: () => ipcRenderer.invoke('vfd-clear'),
   },
+
+  // EFTPOS (SmartConnect)
+  eftpos: {
+    pair: (pairingCode: string) => ipcRenderer.invoke('eftpos-pair', pairingCode),
+    purchase: (amountCents: number) => ipcRenderer.invoke('eftpos-purchase', amountCents),
+    onDelayed: (callback: () => void) => {
+      ipcRenderer.on('eftpos-delayed', callback);
+      return () => ipcRenderer.removeListener('eftpos-delayed', callback);
+    },
+  },
 });
 
 // Type definitions for the exposed API
@@ -62,6 +72,11 @@ declare global {
         vfdBaudRate: number;
         customLogoPath: string;
         customQrCodePath: string;
+        eftposEnabled: boolean;
+        eftposEnvironment: 'dev' | 'prod';
+        eftposRegisterID: string;
+        eftposRegisterName: string;
+        eftposBusinessName: string;
       }>;
       setSettings: (settings: Record<string, any>) => Promise<boolean>;
       toggleFullscreen: () => Promise<boolean>;
@@ -92,6 +107,22 @@ declare global {
         itemAdded: (itemName: string, price: number, total: number) => Promise<{ success: boolean }>;
         total: (total: number) => Promise<{ success: boolean }>;
         clear: () => Promise<{ success: boolean }>;
+      };
+      eftpos: {
+        pair: (pairingCode: string) => Promise<{ success: boolean; error?: string }>;
+        purchase: (amountCents: number) => Promise<{
+          outcome: 'Accepted' | 'Declined' | 'Cancelled' | 'DeviceOffline' | 'Failed';
+          amountTotal?: number;
+          authId?: string;
+          acquirerRef?: string;
+          terminalRef?: string;
+          cardPan?: string;
+          cardType?: string;
+          receipt?: string;
+          transactionId?: string;
+          error?: string;
+        }>;
+        onDelayed: (callback: () => void) => () => void;
       };
     };
   }

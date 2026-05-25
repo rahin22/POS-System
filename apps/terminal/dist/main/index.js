@@ -40,8 +40,10 @@ const electron_1 = require("electron");
 const electron_updater_1 = require("electron-updater");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+const crypto_1 = require("crypto");
 const electron_store_1 = __importDefault(require("electron-store"));
 const vfd = __importStar(require("./vfd"));
+const eftpos = __importStar(require("./eftpos"));
 // Initialize store for settings
 const store = new electron_store_1.default({
     defaults: {
@@ -52,10 +54,28 @@ const store = new electron_store_1.default({
         vfdEnabled: false,
         vfdPort: '/dev/ttyUSB0',
         vfdBaudRate: 9600,
-        customLogoPath: '', // Empty means use default
-        customQrCodePath: '', // Empty means use default
+        customLogoPath: '',
+        customQrCodePath: '',
+        eftposEnabled: false,
+        eftposEnvironment: 'prod',
+        eftposRegisterID: '',
+        eftposRegisterName: 'Main Register',
+        eftposBusinessName: 'Al Taher Kebabs',
     },
 });
+// Generate a stable Register ID on first run — must never change after pairing
+if (!store.get('eftposRegisterID')) {
+    store.set('eftposRegisterID', (0, crypto_1.randomUUID)());
+}
+function configureEftpos() {
+    eftpos.configure({
+        environment: store.get('eftposEnvironment'),
+        posRegisterID: store.get('eftposRegisterID'),
+        posRegisterName: store.get('eftposRegisterName'),
+        posBusinessName: store.get('eftposBusinessName'),
+    });
+}
+configureEftpos();
 let mainWindow = null;
 function createWindow() {
     const isKiosk = store.get('kioskMode');
@@ -228,12 +248,20 @@ electron_1.ipcMain.handle('get-settings', () => {
         vfdBaudRate: store.get('vfdBaudRate'),
         customLogoPath: store.get('customLogoPath'),
         customQrCodePath: store.get('customQrCodePath'),
+        eftposEnabled: store.get('eftposEnabled'),
+        eftposEnvironment: store.get('eftposEnvironment'),
+        eftposRegisterID: store.get('eftposRegisterID'),
+        eftposRegisterName: store.get('eftposRegisterName'),
+        eftposBusinessName: store.get('eftposBusinessName'),
     };
 });
 electron_1.ipcMain.handle('set-settings', (_, settings) => {
-    Object.entries(settings).forEach(([key, value]) => {
+    // Never overwrite the Register ID via settings save — it must stay stable
+    const { eftposRegisterID: _ignored, ...safeSettings } = settings;
+    Object.entries(safeSettings).forEach(([key, value]) => {
         store.set(key, value);
     });
+    configureEftpos();
     return true;
 });
 electron_1.ipcMain.handle('toggle-fullscreen', () => {
@@ -645,7 +673,21 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
             // Payment method
             const paymentMethod = orderData.paymentMethod || 'CASH';
             addText(`Paid by: ${paymentMethod.toUpperCase()}`);
-            addBytes(LF, LF);
+            addBytes(LF);
+            // EFTPOS receipt block (regulatory requirement for card payments)
+            if (orderData.eftposReceipt) {
+                addText('--------------------------------');
+                addBytes(LF);
+                // Left align, normal size
+                addBytes(ESC, 0x61, 0x00);
+                addBytes(ESC, 0x21, 0x00);
+                const eftposLines = orderData.eftposReceipt.split('\n');
+                for (const line of eftposLines) {
+                    addText(line);
+                    addBytes(LF);
+                }
+            }
+            addBytes(LF);
             // Center align for footer
             addBytes(ESC, 0x61, 0x01);
             addText('Thank you for your order!');
@@ -714,6 +756,17 @@ electron_1.ipcMain.handle('print-receipt', async (_, orderData) => {
         console.error('Print error:', error);
         return { success: false, error: error.message };
     }
+});
+// ============================================
+// EFTPOS (SmartConnect) IPC Handlers
+// ============================================
+electron_1.ipcMain.handle('eftpos-pair', async (_, pairingCode) => {
+    return await eftpos.pair(pairingCode);
+});
+electron_1.ipcMain.handle('eftpos-purchase', async (event, amountCents) => {
+    return await eftpos.purchase(amountCents, () => {
+        event.sender.send('eftpos-delayed');
+    });
 });
 // ============================================
 // VFD Customer Display IPC Handlers

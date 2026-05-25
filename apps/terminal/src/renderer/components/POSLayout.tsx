@@ -135,7 +135,16 @@ export function POSLayout() {
     orderType: 'dine-in' | 'takeaway',
     payments: Array<{ method: 'cash' | 'card'; amount: number }>,
     customerInfo?: { name?: string; phone?: string },
-    printReceipt?: boolean
+    printReceipt?: boolean,
+    eftposData?: {
+      receipt?: string;
+      authId?: string;
+      terminalRef?: string;
+      cardPan?: string;
+      cardType?: string;
+      transactionId?: string;
+      amountTotal?: number;
+    }
   ) => {
     try {
       const response = await cart.submitOrder(orderType, customerInfo);
@@ -176,6 +185,11 @@ export function POSLayout() {
               tax: response.data.tax,
               total: response.data.total,
               paymentMethod: primaryPayment.method,
+              eftposReceipt: eftposData?.receipt,
+              eftposAuthId: eftposData?.authId,
+              eftposTerminalRef: eftposData?.terminalRef,
+              eftposCardPan: eftposData?.cardPan,
+              eftposCardType: eftposData?.cardType,
             };
 
             // Print customer receipt

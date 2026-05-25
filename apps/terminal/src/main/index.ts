@@ -2,8 +2,10 @@ import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as fs from 'fs';
+import { randomUUID } from 'crypto';
 import Store from 'electron-store';
 import * as vfd from './vfd';
+import * as eftpos from './eftpos';
 
 // Initialize store for settings
 const store = new Store({
@@ -15,10 +17,31 @@ const store = new Store({
     vfdEnabled: false,
     vfdPort: '/dev/ttyUSB0',
     vfdBaudRate: 9600,
-    customLogoPath: '', // Empty means use default
-    customQrCodePath: '', // Empty means use default
+    customLogoPath: '',
+    customQrCodePath: '',
+    eftposEnabled: false,
+    eftposEnvironment: 'prod' as string,
+    eftposRegisterID: '' as string,
+    eftposRegisterName: 'Main Register' as string,
+    eftposBusinessName: 'Al Taher Kebabs' as string,
   },
 });
+
+// Generate a stable Register ID on first run — must never change after pairing
+if (!store.get('eftposRegisterID')) {
+  store.set('eftposRegisterID', randomUUID());
+}
+
+function configureEftpos() {
+  eftpos.configure({
+    environment: store.get('eftposEnvironment') as 'dev' | 'prod',
+    posRegisterID: store.get('eftposRegisterID') as string,
+    posRegisterName: store.get('eftposRegisterName') as string,
+    posBusinessName: store.get('eftposBusinessName') as string,
+  });
+}
+
+configureEftpos();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -212,13 +235,21 @@ ipcMain.handle('get-settings', () => {
     vfdBaudRate: store.get('vfdBaudRate'),
     customLogoPath: store.get('customLogoPath'),
     customQrCodePath: store.get('customQrCodePath'),
+    eftposEnabled: store.get('eftposEnabled'),
+    eftposEnvironment: store.get('eftposEnvironment'),
+    eftposRegisterID: store.get('eftposRegisterID'),
+    eftposRegisterName: store.get('eftposRegisterName'),
+    eftposBusinessName: store.get('eftposBusinessName'),
   };
 });
 
 ipcMain.handle('set-settings', (_, settings: Record<string, any>) => {
-  Object.entries(settings).forEach(([key, value]) => {
+  // Never overwrite the Register ID via settings save — it must stay stable
+  const { eftposRegisterID: _ignored, ...safeSettings } = settings;
+  Object.entries(safeSettings).forEach(([key, value]) => {
     store.set(key, value);
   });
+  configureEftpos();
   return true;
 });
 
@@ -678,12 +709,28 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
       
       addText('--------------------------------');
       addBytes(LF);
-      
+
       // Payment method
       const paymentMethod = orderData.paymentMethod || 'CASH';
       addText(`Paid by: ${paymentMethod.toUpperCase()}`);
-      addBytes(LF, LF);
-      
+      addBytes(LF);
+
+      // EFTPOS receipt block (regulatory requirement for card payments)
+      if (orderData.eftposReceipt) {
+        addText('--------------------------------');
+        addBytes(LF);
+        // Left align, normal size
+        addBytes(ESC, 0x61, 0x00);
+        addBytes(ESC, 0x21, 0x00);
+        const eftposLines = orderData.eftposReceipt.split('\n');
+        for (const line of eftposLines) {
+          addText(line);
+          addBytes(LF);
+        }
+      }
+
+      addBytes(LF);
+
       // Center align for footer
       addBytes(ESC, 0x61, 0x01);
       addText('Thank you for your order!');
@@ -758,6 +805,20 @@ ipcMain.handle('print-receipt', async (_, orderData: any) => {
     console.error('Print error:', error);
     return { success: false, error: error.message };
   }
+});
+
+// ============================================
+// EFTPOS (SmartConnect) IPC Handlers
+// ============================================
+
+ipcMain.handle('eftpos-pair', async (_, pairingCode: string) => {
+  return await eftpos.pair(pairingCode);
+});
+
+ipcMain.handle('eftpos-purchase', async (event, amountCents: number) => {
+  return await eftpos.purchase(amountCents, () => {
+    event.sender.send('eftpos-delayed');
+  });
 });
 
 // ============================================

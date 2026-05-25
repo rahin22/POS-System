@@ -1,5 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CartItem } from '../hooks/useCart';
+
+interface EftposData {
+  receipt?: string;
+  authId?: string;
+  terminalRef?: string;
+  cardPan?: string;
+  cardType?: string;
+  transactionId?: string;
+  amountTotal?: number;
+}
 
 interface CheckoutScreenProps {
   items: CartItem[];
@@ -12,7 +22,8 @@ interface CheckoutScreenProps {
     orderType: 'dine-in' | 'takeaway',
     payments: Array<{ method: 'cash' | 'card'; amount: number }>,
     customerInfo?: { name?: string; phone?: string },
-    printReceipt?: boolean
+    printReceipt?: boolean,
+    eftposData?: EftposData
   ) => Promise<{ success: boolean; orderNumber?: number; error?: string }>;
   onCancel: () => void;
 }
@@ -39,6 +50,20 @@ export function CheckoutScreen({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [orderComplete, setOrderComplete] = useState<{ orderNumber: number; change: number } | null>(null);
+
+  const [eftposEnabled, setEftposEnabled] = useState(false);
+  const [eftposPhase, setEftposPhase] = useState<'idle' | 'waiting' | 'delayed'>('idle');
+
+  useEffect(() => {
+    window.electronAPI?.getSettings().then(s => {
+      setEftposEnabled(s.eftposEnabled || false);
+    });
+
+    const removeDelayedListener = window.electronAPI?.eftpos?.onDelayed(() => {
+      setEftposPhase('delayed');
+    });
+    return () => { removeDelayedListener?.(); };
+  }, []);
 
   const formatPrice = (price: number) => `${currencySymbol}${price.toFixed(2)}`;
 
@@ -114,7 +139,7 @@ export function CheckoutScreen({
     setError('');
 
     const payments: Array<{ method: 'cash' | 'card'; amount: number }> = [];
-    
+
     if (paymentMode === 'cash') {
       payments.push({ method: 'cash', amount: total });
     } else if (paymentMode === 'card') {
@@ -126,6 +151,39 @@ export function CheckoutScreen({
       if (card > 0) payments.push({ method: 'card', amount: card });
     }
 
+    // EFTPOS: process card portion before submitting the order
+    let eftposData: EftposData | undefined;
+    const cardPayment = payments.find(p => p.method === 'card');
+
+    if (eftposEnabled && cardPayment) {
+      setEftposPhase('waiting');
+      const amountCents = Math.round(cardPayment.amount * 100);
+      const result = await window.electronAPI?.eftpos?.purchase(amountCents);
+      setEftposPhase('idle');
+
+      if (!result || result.outcome !== 'Accepted') {
+        const messages: Record<string, string> = {
+          Declined: 'Card declined. Please try a different payment method.',
+          Cancelled: 'Payment cancelled on the terminal.',
+          DeviceOffline: 'Terminal is offline. Check its internet connection and try again.',
+          Failed: `Payment failed: ${result?.error || 'Unknown error'}`,
+        };
+        setError(messages[result?.outcome ?? 'Failed'] ?? 'Payment failed');
+        setIsProcessing(false);
+        return;
+      }
+
+      eftposData = {
+        receipt: result.receipt,
+        authId: result.authId,
+        terminalRef: result.terminalRef,
+        cardPan: result.cardPan,
+        cardType: result.cardType,
+        transactionId: result.transactionId,
+        amountTotal: result.amountTotal,
+      };
+    }
+
     const result = await onConfirm(
       orderType,
       payments,
@@ -133,13 +191,14 @@ export function CheckoutScreen({
         name: customerName || undefined,
         phone: customerPhone || undefined,
       },
-      true // Always print receipt
+      true,
+      eftposData
     );
 
     if (result.success) {
       setOrderComplete({
         orderNumber: result.orderNumber!,
-        change: calculateChange()
+        change: calculateChange(),
       });
     } else {
       setError(result.error || 'Failed to process order');
@@ -175,7 +234,7 @@ export function CheckoutScreen({
   }
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
+    <div className="fixed inset-0 bg-white z-50 flex flex-col relative">
       {/* Header */}
       <div className="bg-primary-600 text-white px-6 py-4 flex items-center justify-between">
         <button
@@ -447,10 +506,34 @@ export function CheckoutScreen({
             disabled={!isPaymentValid() || isProcessing}
             className="w-full mt-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isProcessing ? 'Processing...' : 'Complete Order & Print Receipt'}
+            {isProcessing && eftposPhase === 'idle' ? 'Processing...' : 'Complete Order & Print Receipt'}
           </button>
         </div>
       </div>
+
+      {/* EFTPOS Waiting Overlay */}
+      {eftposPhase !== 'idle' && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+          <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-sm w-full mx-4 text-center">
+            <div className="text-7xl mb-6">💳</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Card Payment</h2>
+            <p className="text-4xl font-bold text-blue-600 mb-6">
+              {formatPrice(paymentMode === 'card' ? total : parseFloat(cardAmount) || 0)}
+            </p>
+
+            <div className="flex justify-center mb-4">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+
+            {eftposPhase === 'waiting' && (
+              <p className="text-gray-600 text-lg">Tap or insert card on the terminal</p>
+            )}
+            {eftposPhase === 'delayed' && (
+              <p className="text-amber-600 text-lg font-medium">Taking longer than usual — check the terminal</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

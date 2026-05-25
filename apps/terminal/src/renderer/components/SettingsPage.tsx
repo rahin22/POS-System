@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2, Download } from 'lucide-react';
+import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2, Download, CreditCard } from 'lucide-react';
 
 // Type for the update-related electron API (extends the base types)
 interface ElectronUpdateAPI {
@@ -22,7 +22,16 @@ export function SettingsPage() {
     vfdBaudRate: 9600,
     customLogoPath: '',
     customQrCodePath: '',
+    eftposEnabled: false,
+    eftposEnvironment: 'prod' as 'dev' | 'prod',
+    eftposRegisterName: 'Main Register',
+    eftposBusinessName: 'Al Taher Kebabs',
   });
+  const [eftposRegisterID, setEftposRegisterID] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
+  const [pairingStatus, setPairingStatus] = useState<'idle' | 'pairing' | 'success' | 'error'>('idle');
+  const [pairingError, setPairingError] = useState('');
+
   const [saved, setSaved] = useState(false);
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
   const [availablePorts, setAvailablePorts] = useState<{ path: string; manufacturer?: string }[]>([]);
@@ -46,8 +55,37 @@ export function SettingsPage() {
 
   const loadSettings = async () => {
     if (window.electronAPI?.getSettings) {
-      const currentSettings = await window.electronAPI.getSettings();
-      setSettings(currentSettings);
+      const s = await window.electronAPI.getSettings();
+      setSettings({
+        apiUrl: s.apiUrl,
+        kioskMode: s.kioskMode,
+        printerEnabled: s.printerEnabled,
+        printerName: s.printerName,
+        vfdEnabled: s.vfdEnabled,
+        vfdPort: s.vfdPort,
+        vfdBaudRate: s.vfdBaudRate,
+        customLogoPath: s.customLogoPath,
+        customQrCodePath: s.customQrCodePath,
+        eftposEnabled: s.eftposEnabled,
+        eftposEnvironment: s.eftposEnvironment,
+        eftposRegisterName: s.eftposRegisterName,
+        eftposBusinessName: s.eftposBusinessName,
+      });
+      setEftposRegisterID(s.eftposRegisterID || '');
+    }
+  };
+
+  const handlePair = async () => {
+    if (!pairingCode.trim()) return;
+    setPairingStatus('pairing');
+    setPairingError('');
+    const result = await window.electronAPI?.eftpos?.pair(pairingCode.trim());
+    if (result?.success) {
+      setPairingStatus('success');
+      setPairingCode('');
+    } else {
+      setPairingStatus('error');
+      setPairingError(result?.error || 'Pairing failed');
     }
   };
 
@@ -422,6 +460,114 @@ export function SettingsPage() {
                   >
                     Connect VFD
                   </button>
+                )}
+              </div>
+            </div>
+
+            {/* EFTPOS Section */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-4">
+                <CreditCard className="w-5 h-5 text-gray-600" />
+                <h2 className="text-lg font-semibold">EFTPOS Terminal</h2>
+              </div>
+
+              {/* Enable toggle */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Enable EFTPOS Integration</label>
+                  <p className="text-sm text-gray-500">Auto-send card payments to SmartConnect terminal</p>
+                </div>
+                <button
+                  onClick={() => setSettings({ ...settings, eftposEnabled: !settings.eftposEnabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.eftposEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.eftposEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Environment */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+                <select
+                  value={settings.eftposEnvironment}
+                  onChange={(e) => setSettings({ ...settings, eftposEnvironment: e.target.value as 'dev' | 'prod' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="prod">Production (live payments)</option>
+                  <option value="dev">Development (test mode)</option>
+                </select>
+              </div>
+
+              {/* Business Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
+                <input
+                  type="text"
+                  value={settings.eftposBusinessName}
+                  onChange={(e) => setSettings({ ...settings, eftposBusinessName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Al Taher Kebabs"
+                />
+                <p className="mt-1 text-xs text-gray-500">Must match exactly what was used when pairing</p>
+              </div>
+
+              {/* Register Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Register Name</label>
+                <input
+                  type="text"
+                  value={settings.eftposRegisterName}
+                  onChange={(e) => setSettings({ ...settings, eftposRegisterName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Main Register"
+                />
+              </div>
+
+              {/* Register ID (read-only) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Register ID</label>
+                <input
+                  type="text"
+                  value={eftposRegisterID}
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 text-xs font-mono cursor-not-allowed"
+                />
+                <p className="mt-1 text-xs text-gray-500">Auto-generated. Do not change — re-pairing required if it changes.</p>
+              </div>
+
+              {/* Pairing */}
+              <div className="mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pair Terminal</label>
+                <p className="text-sm text-gray-500 mb-2">
+                  On the PAX A920, initiate pairing to get a code, then enter it below.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={pairingCode}
+                    onChange={(e) => { setPairingCode(e.target.value); setPairingStatus('idle'); }}
+                    onKeyDown={(e) => e.key === 'Enter' && handlePair()}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono tracking-widest text-center text-lg"
+                    placeholder="Pairing code"
+                    maxLength={12}
+                  />
+                  <button
+                    onClick={handlePair}
+                    disabled={pairingStatus === 'pairing' || !pairingCode.trim()}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    {pairingStatus === 'pairing' ? 'Pairing...' : 'Pair'}
+                  </button>
+                </div>
+                {pairingStatus === 'success' && (
+                  <p className="mt-2 text-sm text-green-600 font-medium">Terminal paired successfully!</p>
+                )}
+                {pairingStatus === 'error' && (
+                  <p className="mt-2 text-sm text-red-600">{pairingError}</p>
                 )}
               </div>
             </div>

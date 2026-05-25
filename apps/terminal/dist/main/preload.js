@@ -42,4 +42,13 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         total: (total) => electron_1.ipcRenderer.invoke('vfd-total', total),
         clear: () => electron_1.ipcRenderer.invoke('vfd-clear'),
     },
+    // EFTPOS (SmartConnect)
+    eftpos: {
+        pair: (pairingCode) => electron_1.ipcRenderer.invoke('eftpos-pair', pairingCode),
+        purchase: (amountCents) => electron_1.ipcRenderer.invoke('eftpos-purchase', amountCents),
+        onDelayed: (callback) => {
+            electron_1.ipcRenderer.on('eftpos-delayed', callback);
+            return () => electron_1.ipcRenderer.removeListener('eftpos-delayed', callback);
+        },
+    },
 });
