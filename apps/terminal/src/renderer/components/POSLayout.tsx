@@ -166,8 +166,7 @@ export function POSLayout() {
             // Get order type - API returns 'type' with underscore format (dine_in), convert to display format
             const orderType = (response.data.type || 'takeaway').replace('_', '-');
             
-            // Print customer receipt
-            const printResult = await window.electronAPI.printReceipt({
+            const printData = {
               orderId: response.data.id,
               orderNumber: response.data.orderNumber,
               customerName: response.data.customerName,
@@ -177,8 +176,18 @@ export function POSLayout() {
               tax: response.data.tax,
               total: response.data.total,
               paymentMethod: primaryPayment.method,
-            });
+            };
+
+            // Print customer receipt
+            const printResult = await window.electronAPI.printReceipt(printData);
             console.log('Customer receipt print result:', printResult);
+
+            // Print kitchen docket
+            const kitchenResult = await window.electronAPI.printReceipt({
+              ...printData,
+              paymentMethod: 'kitchen',
+            });
+            console.log('Kitchen docket print result:', kitchenResult);
           } else {
             console.warn('Electron print API not available - running in browser mode');
           }
