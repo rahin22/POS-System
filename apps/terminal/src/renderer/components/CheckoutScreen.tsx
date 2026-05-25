@@ -56,8 +56,16 @@ export function CheckoutScreen({
 
   useEffect(() => {
     window.electronAPI?.getSettings().then(s => {
+      console.log('[EFTPOS] Settings loaded:', {
+        eftposEnabled: s.eftposEnabled,
+        eftposEnvironment: s.eftposEnvironment,
+        eftposBusinessName: s.eftposBusinessName,
+        eftposRegisterID: s.eftposRegisterID,
+      });
       setEftposEnabled(s.eftposEnabled || false);
     });
+
+    console.log('[EFTPOS] eftpos API available:', !!window.electronAPI?.eftpos);
 
     const removeDelayedListener = window.electronAPI?.eftpos?.onDelayed(() => {
       setEftposPhase('delayed');
@@ -155,10 +163,19 @@ export function CheckoutScreen({
     let eftposData: EftposData | undefined;
     const cardPayment = payments.find(p => p.method === 'card');
 
+    console.log('[EFTPOS] handleCompleteOrder:', {
+      eftposEnabled,
+      paymentMode,
+      cardPayment,
+      eftposApiAvailable: !!window.electronAPI?.eftpos,
+    });
+
     if (eftposEnabled && cardPayment) {
       setEftposPhase('waiting');
       const amountCents = Math.round(cardPayment.amount * 100);
+      console.log('[EFTPOS] Sending purchase request, cents:', amountCents);
       const result = await window.electronAPI?.eftpos?.purchase(amountCents);
+      console.log('[EFTPOS] Purchase result:', result);
       setEftposPhase('idle');
 
       if (!result || result.outcome !== 'Accepted') {
@@ -234,7 +251,7 @@ export function CheckoutScreen({
   }
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col relative">
+    <div className="fixed inset-0 bg-white z-50 flex flex-col">
       {/* Header */}
       <div className="bg-primary-600 text-white px-6 py-4 flex items-center justify-between">
         <button
@@ -513,7 +530,7 @@ export function CheckoutScreen({
 
       {/* EFTPOS Waiting Overlay */}
       {eftposPhase !== 'idle' && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-60">
           <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-sm w-full mx-4 text-center">
             <div className="text-7xl mb-6">💳</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Card Payment</h2>
