@@ -9,6 +9,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { printReceipt as sunmiPrint, printKitchenDocket as sunmiKitchenPrint, getPrinterStatus } from './sunmi-printer';
 import type { PrintOrderData } from './sunmi-printer';
+import { getEftposSettings, pair as eftposPair, purchase as eftposPurchase } from './eftpos';
 
 // Detect platform
 export const platform = {
@@ -81,6 +82,9 @@ export const appInfo = {
   },
 };
 
+// Listeners registered through electronAPI.eftpos.onDelayed
+const delayedCallbacks = new Set<() => void>();
+
 // Create a window.electronAPI-like interface for compatibility
 export function createCompatibilityLayer() {
   // Only create if not running in Electron
@@ -98,11 +102,14 @@ export function createCompatibilityLayer() {
         vfdBaudRate: 9600,
         customLogoPath: '',
         customQrCodePath: '',
+        ...(await getEftposSettings()),
       };
     },
 
     setSettings: async (newSettings: Record<string, any>) => {
-      for (const [key, value] of Object.entries(newSettings)) {
+      // Never overwrite the Register ID via settings save — it must stay stable
+      const { eftposRegisterID: _ignored, ...safeSettings } = newSettings;
+      for (const [key, value] of Object.entries(safeSettings)) {
         await settings.set(key, value);
       }
       return true;
@@ -131,6 +138,18 @@ export function createCompatibilityLayer() {
       itemAdded: async () => ({ success: false }),
       total: async () => ({ success: false }),
       clear: async () => ({ success: false }),
+    },
+
+    // EFTPOS (SmartConnect) — mirrors the terminal app's electronAPI.eftpos.
+    // There's no main/renderer split here, so `onDelayed` registers a plain callback
+    // that purchase() invokes directly.
+    eftpos: {
+      pair: async (pairingCode: string) => eftposPair(pairingCode),
+      purchase: async (amountCents: number) => eftposPurchase(amountCents, () => delayedCallbacks.forEach(cb => cb())),
+      onDelayed: (callback: () => void) => {
+        delayedCallbacks.add(callback);
+        return () => delayedCallbacks.delete(callback);
+      },
     },
 
     // Updates handled differently on Android

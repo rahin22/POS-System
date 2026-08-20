@@ -102,6 +102,12 @@ export interface PrintOrderData {
   total: number;
   paymentMethod: string;
   createdAt: string;
+  // EFTPOS (SmartConnect) — present when the card portion was taken on the terminal
+  eftposReceipt?: string;
+  eftposAuthId?: string;
+  eftposTerminalRef?: string;
+  eftposCardPan?: string;
+  eftposCardType?: string;
 }
 
 export interface PrinterStatus {
@@ -220,6 +226,20 @@ export async function printReceipt(orderData: PrintOrderData): Promise<{ success
 
     await SunmiPrinter.printText({ text: '--------------------------------\n' });
     await SunmiPrinter.printText({ text: `Paid by: ${orderData.paymentMethod}\n` });
+
+    // EFTPOS receipt block — card scheme requirement, only printed if enabled in settings
+    if (orderData.eftposReceipt) {
+      // Defaults to on when the setting has never been written
+      const { value: printBlock } = await Preferences.get({ key: 'eftposPrintReceipt' });
+      if (printBlock !== 'false') {
+        await SunmiPrinter.printText({ text: '--------------------------------\n' });
+        await SunmiPrinter.setAlignment({ alignment: 0 }); // Left
+        await SunmiPrinter.setFontSize({ size: 24 });
+        for (const line of orderData.eftposReceipt.split('\n')) {
+          await SunmiPrinter.printText({ text: `${line}\n` });
+        }
+      }
+    }
 
     // Footer (centered)
     await SunmiPrinter.printTextStyled({ text: '\n', fontSize: 24, alignment: 1 });

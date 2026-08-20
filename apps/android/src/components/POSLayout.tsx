@@ -10,6 +10,7 @@ import { useProducts } from '../hooks/useProducts';
 import { useCart, CartItem } from '../hooks/useCart';
 import { useApi } from '../context/ApiContext';
 import { printer } from '../lib/platform';
+import type { EftposData } from '../lib/eftpos';
 import { Search, X } from 'lucide-react';
 
 interface WeightProduct {
@@ -132,7 +133,8 @@ export function POSLayout() {
     orderType: 'dine-in' | 'takeaway',
     payments: Array<{ method: 'cash' | 'card'; amount: number }>,
     customerInfo?: { name?: string; phone?: string },
-    printReceipt?: boolean
+    printReceipt?: boolean,
+    eftposData?: EftposData
   ) => {
     try {
       const response = await cart.submitOrder(orderType, customerInfo);
@@ -187,6 +189,11 @@ export function POSLayout() {
             total: response.data.total,
             paymentMethod: primaryPayment.method,
             createdAt: response.data.createdAt || new Date().toISOString(),
+            eftposReceipt: eftposData?.receipt,
+            eftposAuthId: eftposData?.authId,
+            eftposTerminalRef: eftposData?.terminalRef,
+            eftposCardPan: eftposData?.cardPan,
+            eftposCardType: eftposData?.cardType,
           });
           console.log('Customer receipt print result:', printResult);
         } else {

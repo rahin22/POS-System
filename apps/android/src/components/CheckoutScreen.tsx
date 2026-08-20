@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CartItem } from '../hooks/useCart';
+import { getEftposSettings, purchase as eftposPurchase, EftposData } from '../lib/eftpos';
 
 interface CheckoutScreenProps {
   items: CartItem[];
@@ -12,7 +13,8 @@ interface CheckoutScreenProps {
     orderType: 'dine-in' | 'takeaway',
     payments: Array<{ method: 'cash' | 'card'; amount: number }>,
     customerInfo?: { name?: string; phone?: string },
-    printReceipt?: boolean
+    printReceipt?: boolean,
+    eftposData?: EftposData
   ) => Promise<{ success: boolean; orderNumber?: number; error?: string }>;
   onCancel: () => void;
 }
@@ -39,6 +41,21 @@ export function CheckoutScreen({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [orderComplete, setOrderComplete] = useState<{ orderNumber: number; change: number } | null>(null);
+
+  const [eftposEnabled, setEftposEnabled] = useState(false);
+  const [eftposPhase, setEftposPhase] = useState<'idle' | 'waiting' | 'delayed'>('idle');
+
+  useEffect(() => {
+    getEftposSettings().then(s => {
+      console.log('[EFTPOS] Settings loaded:', {
+        eftposEnabled: s.eftposEnabled,
+        eftposEnvironment: s.eftposEnvironment,
+        eftposBusinessName: s.eftposBusinessName,
+        eftposRegisterID: s.eftposRegisterID,
+      });
+      setEftposEnabled(s.eftposEnabled);
+    });
+  }, []);
 
   const formatPrice = (price: number) => `${currencySymbol}${price.toFixed(2)}`;
 
@@ -126,6 +143,43 @@ export function CheckoutScreen({
       if (card > 0) payments.push({ method: 'card', amount: card });
     }
 
+    // EFTPOS: process card portion before submitting the order
+    let eftposData: EftposData | undefined;
+    const cardPayment = payments.find(p => p.method === 'card');
+
+    console.log('[EFTPOS] handleCompleteOrder:', { eftposEnabled, paymentMode, cardPayment });
+
+    if (eftposEnabled && cardPayment) {
+      setEftposPhase('waiting');
+      const amountCents = Math.round(cardPayment.amount * 100);
+      console.log('[EFTPOS] Sending purchase request, cents:', amountCents);
+      const eftposResult = await eftposPurchase(amountCents, () => setEftposPhase('delayed'));
+      console.log('[EFTPOS] Purchase result:', eftposResult);
+      setEftposPhase('idle');
+
+      if (eftposResult.outcome !== 'Accepted') {
+        const messages: Record<string, string> = {
+          Declined: 'Card declined. Please try a different payment method.',
+          Cancelled: 'Payment cancelled on the terminal.',
+          DeviceOffline: 'Terminal is offline. Check its internet connection and try again.',
+          Failed: `Payment failed: ${eftposResult.error || 'Unknown error'}`,
+        };
+        setError(messages[eftposResult.outcome] ?? 'Payment failed');
+        setIsProcessing(false);
+        return;
+      }
+
+      eftposData = {
+        receipt: eftposResult.receipt,
+        authId: eftposResult.authId,
+        terminalRef: eftposResult.terminalRef,
+        cardPan: eftposResult.cardPan,
+        cardType: eftposResult.cardType,
+        transactionId: eftposResult.transactionId,
+        amountTotal: eftposResult.amountTotal,
+      };
+    }
+
     const result = await onConfirm(
       orderType,
       payments,
@@ -133,7 +187,8 @@ export function CheckoutScreen({
         name: customerName || undefined,
         phone: customerPhone || undefined,
       },
-      true // Always print receipt
+      true, // Always print receipt
+      eftposData
     );
 
     if (result.success) {
@@ -447,10 +502,34 @@ export function CheckoutScreen({
             disabled={!isPaymentValid() || isProcessing}
             className="w-full mt-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isProcessing ? 'Processing...' : 'Complete Order & Print Receipt'}
+            {isProcessing && eftposPhase === 'idle' ? 'Processing...' : 'Complete Order & Print Receipt'}
           </button>
         </div>
       </div>
+
+      {/* EFTPOS Waiting Overlay */}
+      {eftposPhase !== 'idle' && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-sm w-full mx-4 text-center">
+            <div className="text-7xl mb-6">💳</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Card Payment</h2>
+            <p className="text-4xl font-bold text-blue-600 mb-6">
+              {formatPrice(paymentMode === 'card' ? total : parseFloat(cardAmount) || 0)}
+            </p>
+
+            <div className="flex justify-center mb-4">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+
+            {eftposPhase === 'waiting' && (
+              <p className="text-gray-600 text-lg">Tap or insert card on the terminal</p>
+            )}
+            {eftposPhase === 'delayed' && (
+              <p className="text-amber-600 text-lg font-medium">Taking longer than usual — check the terminal</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
