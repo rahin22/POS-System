@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Hand, WifiOff } from 'lucide-react';
+import { ArrowRight, WifiOff } from 'lucide-react';
 import { BrandMark } from '../components/BrandMark';
 import { displayName } from '../lib/format';
 import type { Product } from '../types';
@@ -55,12 +55,12 @@ export function AttractScreen({
   const featured = highlights[slide];
 
   return (
-    <button
-      type="button"
+    // A plain container rather than a button: the screen still starts an order
+    // wherever it is tapped, but the real <button> below can then be nested
+    // inside it, which a button-in-button would not allow.
+    <div
       onClick={handleStart}
-      disabled={offline}
-      className="relative flex h-full w-full flex-col items-center overflow-hidden bg-cream-100 text-center disabled:cursor-not-allowed"
-      aria-label="Touch anywhere to start your order"
+      className="relative flex h-full w-full flex-col items-center overflow-hidden bg-cream-100 text-center"
     >
       {/* Brand block: inset and rounded rather than full-bleed */}
       <div className="mx-10 mt-10 flex w-[calc(100%-5rem)] flex-col items-center rounded-panel bg-brand-500 pb-14 pt-14">
@@ -118,21 +118,32 @@ export function AttractScreen({
 
       {/* Call to action */}
       {!offline && (
-        <div className="flex w-full flex-col items-center gap-8 px-16 pb-20">
-          <div className="relative flex items-center justify-center">
+        <div className="flex w-full flex-col items-center gap-6 px-16 pb-20">
+          <div className="relative flex w-full items-center justify-center">
+            {/* Pulse traces the pill itself rather than sitting behind a circle */}
             <span
-              className="absolute h-44 w-44 rounded-full bg-brand-500/50 animate-pulse-ring"
+              className="absolute h-[152px] w-[680px] rounded-full bg-brand-500/40 animate-pulse-ring"
               aria-hidden="true"
             />
-            <span className="relative flex h-44 w-44 items-center justify-center rounded-full bg-brand-500 shadow-lifted">
-              <Hand className="h-20 w-20 text-ink-900" aria-hidden="true" />
-            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                // The container behind this also starts an order; without this the
+                // handler would run twice on every press of the button.
+                e.stopPropagation();
+                handleStart();
+              }}
+              className="touchable focus-ring relative flex h-[152px] w-[680px] items-center justify-center gap-8 rounded-full bg-brand-500 text-kiosk-2xl font-extrabold text-ink-900 shadow-lifted hover:bg-brand-400 active:bg-brand-600"
+            >
+              <span>Start order</span>
+              <ArrowRight className="h-16 w-16 animate-nudge-right" aria-hidden="true" />
+            </button>
           </div>
-          <p className="text-kiosk-3xl font-extrabold uppercase tracking-[0.06em] text-ink-900">
-            Touch to start
+          <p className="text-kiosk-base font-semibold text-ink-500">
+            or touch anywhere to begin
           </p>
         </div>
       )}
-    </button>
+    </div>
   );
 }

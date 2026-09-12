@@ -4,6 +4,7 @@ import { OrderTypeScreen } from './screens/OrderTypeScreen';
 import { MenuScreen } from './screens/MenuScreen';
 import { ItemSheet } from './screens/ItemSheet';
 import { CartScreen } from './screens/CartScreen';
+import { ComboSheet } from './screens/ComboSheet';
 import { PaymentScreen, PaymentStatus } from './screens/PaymentScreen';
 import { ConfirmationScreen } from './screens/ConfirmationScreen';
 import { AdminScreen } from './screens/AdminScreen';
@@ -16,6 +17,7 @@ import { useMenu } from './hooks/useMenu';
 import { useCart } from './hooks/useCart';
 import { useIdleTimer } from './hooks/useIdleTimer';
 import { createPaidOrder, setApiBaseUrl } from './lib/api';
+import { findComboOffers } from './lib/combos';
 import { displayName } from './lib/format';
 import type { CartLine, KioskSettings, Modifier, OrderType, Product } from './types';
 
@@ -34,6 +36,9 @@ export default function App() {
   const [orderType, setOrderType] = useState<OrderType>('takeaway');
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [editingLine, setEditingLine] = useState<CartLine | null>(null);
+  const [showCombos, setShowCombos] = useState(false);
+  /** Offered once per order, not once per trip to the cart */
+  const [comboPrompted, setComboPrompted] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -117,6 +122,9 @@ export default function App() {
     setPaymentStatus('waiting');
     setConfirmCancel(false);
     setShowHelp(false);
+    // The next customer gets their own combo offer
+    setShowCombos(false);
+    setComboPrompted(false);
     setScreen('attract');
   }, [cart]);
 
@@ -189,6 +197,40 @@ export default function App() {
 
     return picked;
   }, [menu.products, menu.categories, cart.lines]);
+
+  const comboOffers = useMemo(
+    () => findComboOffers(cart.lines, menu.products),
+    [cart.lines, menu.products]
+  );
+
+  /**
+   * Pay runs through the combo prompt once per order. Asking again after the customer
+   * has already said no would be nagging, and asking again after they said yes would
+   * offer an upgrade on a line that is already a combo.
+   */
+  const requestPayment = () => {
+    if (!comboPrompted && comboOffers.length > 0) {
+      setShowCombos(true);
+      return;
+    }
+    void beginPayment();
+  };
+
+  const handleComboConfirm = (lineIds: string[]) => {
+    for (const lineId of lineIds) {
+      const offer = comboOffers.find((candidate) => candidate.line.lineId === lineId);
+      if (offer) cart.upgradeLine(lineId, offer.combo);
+    }
+    setComboPrompted(true);
+    setShowCombos(false);
+    void beginPayment();
+  };
+
+  const handleComboSkip = () => {
+    setComboPrompted(true);
+    setShowCombos(false);
+    void beginPayment();
+  };
 
   const beginPayment = async () => {
     if (paymentInFlight.current) return;
@@ -375,9 +417,18 @@ export default function App() {
           onQuickAdd={handleQuickAdd}
           onSelectProduct={setActiveProduct}
           onAddMore={() => setScreen('menu')}
-          onPay={beginPayment}
+          onPay={requestPayment}
           onCancelOrder={requestCancel}
           onChangeOrderType={() => setScreen('order-type')}
+        />
+      )}
+
+      {showCombos && (
+        <ComboSheet
+          offers={comboOffers}
+          currencySymbol={menu.shop.currencySymbol}
+          onConfirm={handleComboConfirm}
+          onSkip={handleComboSkip}
         />
       )}
 

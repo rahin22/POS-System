@@ -50,6 +50,32 @@ export function useCart(vatRate: number) {
     );
   }, []);
 
+  /**
+   * Swaps a line onto its combo product, keeping the quantity and any chosen options
+   * the combo still offers. Options are filtered rather than carried over blindly: the
+   * combo is a different product, and a modifier id it does not own would be rejected
+   * by the backend when the order is submitted.
+   */
+  const upgradeLine = useCallback((lineId: string, product: Product) => {
+    setLines((prev) =>
+      prev.map((line) => {
+        if (line.lineId !== lineId) return line;
+
+        const available = new Set(
+          (product.modifierGroups || []).flatMap((group) => group.modifiers.map((m) => m.id))
+        );
+        const modifiers = line.modifiers.filter((m) => available.has(m.id));
+
+        return {
+          ...line,
+          product,
+          modifiers,
+          unitPrice: product.price + modifiers.reduce((sum, m) => sum + m.price, 0),
+        };
+      })
+    );
+  }, []);
+
   const setQuantity = useCallback((lineId: string, quantity: number) => {
     setLines((prev) =>
       quantity <= 0
@@ -76,7 +102,7 @@ export function useCart(vatRate: number) {
     };
   }, [lines, vatRate]);
 
-  return { lines, addLine, replaceLine, setQuantity, removeLine, clear, ...totals };
+  return { lines, addLine, replaceLine, upgradeLine, setQuantity, removeLine, clear, ...totals };
 }
 
 export type Cart = ReturnType<typeof useCart>;

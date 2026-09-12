@@ -1,16 +1,28 @@
-import logo from '../assets/logo.png';
+import logo from '../assets/logo-ink.png';
 
 /**
- * The logo artwork sets "Taher" in white, so it only reads on a dark field.
- * On the cream UI it always sits inside this dark badge.
+ * Single-ink wordmark: orange "AL" with everything else in ink, so it reads on
+ * cream and on brand orange alike and needs no backing panel.
+ *
+ * The original artwork set "Taher" in white and "KEBABS & SWEETS" in black, which
+ * no single background can show at once - the dark pill that made "Taher" legible
+ * swallowed the line underneath it. logo-ink.png recolours the white to ink so one
+ * version works everywhere.
  */
-export function BrandMark({ className = '', size = 'md' }: { className?: string; size?: 'sm' | 'md' | 'lg' }) {
-  const padding = size === 'sm' ? 'px-5 py-3' : size === 'lg' ? 'px-14 py-10' : 'px-8 py-5';
-  const width = size === 'sm' ? 'w-40' : size === 'lg' ? 'w-[520px]' : 'w-64';
+export function BrandMark({
+  className = '',
+  size = 'md',
+}: {
+  className?: string;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const width = size === 'sm' ? 'w-44' : size === 'lg' ? 'w-[560px]' : 'w-72';
 
   return (
-    <span className={`inline-flex items-center justify-center rounded-panel bg-ink-900 ${padding} ${className}`}>
-      <img src={logo} alt="Al Taher Kebabs and Sweets" className={`${width} h-auto`} />
-    </span>
+    <img
+      src={logo}
+      alt="Al Taher Kebabs and Sweets"
+      className={`${width} h-auto ${className}`}
+    />
   );
 }
