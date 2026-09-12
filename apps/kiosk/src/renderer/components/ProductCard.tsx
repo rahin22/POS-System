@@ -10,6 +10,8 @@ interface ProductCardProps {
   onSelect: (product: Product) => void;
   /** Adds straight to the order; only offered when there is nothing to choose */
   onQuickAdd: (product: Product) => void;
+  /** Answers a tap on a sold-out card, so it is never silently inert */
+  onSoldOut: (product: Product) => void;
   index: number;
 }
 
@@ -18,17 +20,22 @@ export function ProductCard({
   currencySymbol,
   onSelect,
   onQuickAdd,
+  onSoldOut,
   index,
 }: ProductCardProps) {
   // Menu photos are staff-uploaded URLs; a dead link must not leave an empty block
   const [imageFailed, setImageFailed] = useState(false);
   const image = imageFailed ? undefined : product.imageUrl || product.image;
-  const optionCount = (product.modifierGroups || []).length;
-  const hasOptions = optionCount > 0;
+  const hasOptions = (product.modifierGroups || []).length > 0;
   const soldOut = !product.isAvailable;
 
   const handleCard = () => {
-    if (soldOut) return;
+    // Never silently inert: on a kiosk, "nothing happened" reads as "broken" and
+    // the customer's next move is to tap harder.
+    if (soldOut) {
+      onSoldOut(product);
+      return;
+    }
     if (hasOptions) onSelect(product);
     else onQuickAdd(product);
   };
@@ -37,21 +44,27 @@ export function ProductCard({
     <button
       type="button"
       onClick={handleCard}
-      disabled={soldOut}
       style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}
-      className={`touchable focus-ring group flex animate-fade-up flex-col overflow-hidden rounded-kiosk bg-white text-left shadow-card ${
-        soldOut ? 'opacity-60 active:scale-100' : 'hover:ring-4 hover:ring-brand-500'
+      className={`touchable focus-ring group flex animate-fade-up flex-col overflow-hidden rounded-kiosk text-left shadow-card ${
+        soldOut ? 'bg-cream-200' : 'bg-white hover:ring-4 hover:ring-brand-500'
       }`}
     >
       {/* Only spend vertical space on a picture when there is a real one */}
       {image && (
         <div className="relative aspect-[5/3] w-full overflow-hidden bg-cream-200">
+          {/*
+            Dim the PHOTO, not the card. A blanket opacity dragged the "Sold out"
+            chip and the price to under 3:1 — making the one label whose job is to
+            explain why the card is inert the hardest thing on it to read.
+          */}
           <img
             src={image}
             alt=""
             loading="lazy"
             onError={() => setImageFailed(true)}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+            className={`h-full w-full object-cover transition-transform duration-300 ${
+              soldOut ? 'opacity-40 grayscale' : 'group-hover:scale-[1.04]'
+            }`}
           />
         </div>
       )}
@@ -65,14 +78,16 @@ export function ProductCard({
             <p className="mt-2 text-kiosk-xs text-ink-600 line-clamp-2">{product.description}</p>
           )}
           {soldOut && (
-            <span className="mt-3 inline-block rounded-full bg-cream-300 px-4 py-1.5 text-kiosk-xs font-bold uppercase tracking-wide text-ink-600">
-              Sold out
+            <span className="mt-3 inline-block rounded-full bg-ink-900 px-5 py-2 text-kiosk-xs font-extrabold uppercase tracking-wide text-white">
+              Sold out today
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between gap-4">
-          <span className="text-kiosk-lg font-extrabold text-brand-800">
+          <span
+            className={`text-kiosk-lg font-extrabold ${soldOut ? 'text-ink-600' : 'text-brand-800'}`}
+          >
             {currencySymbol}
             {product.price.toFixed(2)}
           </span>

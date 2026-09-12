@@ -44,7 +44,7 @@ export function CategoryCard({ name, productCount, imageUrl, index, onSelect }: 
           <span className="block text-kiosk-base font-extrabold leading-tight text-ink-900 line-clamp-2">
             {displayName(name)}
           </span>
-          <span className="mt-1 block text-kiosk-xs font-semibold text-ink-500">
+          <span className="mt-1 block text-kiosk-xs font-semibold text-ink-600">
             {productCount} item{productCount === 1 ? '' : 's'}
           </span>
         </span>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AttractScreen } from './screens/AttractScreen';
+import { AttractScreen, KioskStatus } from './screens/AttractScreen';
 import { OrderTypeScreen } from './screens/OrderTypeScreen';
 import { MenuScreen } from './screens/MenuScreen';
 import { ItemSheet } from './screens/ItemSheet';
@@ -34,6 +34,12 @@ export default function App() {
   const [settings, setSettings] = useState<KioskSettings | null>(null);
   const [screen, setScreen] = useState<Screen>('attract');
   const [orderType, setOrderType] = useState<OrderType>('takeaway');
+  /**
+   * Where the order-type screen was opened from. Null means it is the opening step
+   * of a new order, so leaving it cancels; otherwise leaving returns there with the
+   * basket untouched.
+   */
+  const [orderTypeReturn, setOrderTypeReturn] = useState<Screen | null>(null);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [editingLine, setEditingLine] = useState<CartLine | null>(null);
   const [showCombos, setShowCombos] = useState(false);
@@ -52,9 +58,13 @@ export default function App() {
     null
   );
 
-  const menu = useMenu(settings?.apiUrl ?? null);
+  // Refresh only between customers: see the useMenu docblock for why a refresh
+  // underneath a live order can end in a charge with no order.
+  const menu = useMenu(settings?.apiUrl ?? null, screen !== 'attract' && screen !== 'admin');
   const cart = useCart(menu.shop.vatRate);
   const paymentInFlight = useRef(false);
+  /** The customer's place in the menu, kept across the trip to the cart */
+  const menuScrollTop = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---------------------------------------------------------------- settings
@@ -114,6 +124,8 @@ export default function App() {
 
   const resetToAttract = useCallback(() => {
     cart.clear();
+    // The one piece of customer state the old reset left behind
+    setOrderType('takeaway');
     setActiveProduct(null);
     setEditingLine(null);
     setConfirmation(null);
@@ -125,6 +137,9 @@ export default function App() {
     // The next customer gets their own combo offer
     setShowCombos(false);
     setComboPrompted(false);
+    setOrderTypeReturn(null);
+    // The next customer starts at the top of the menu, not wherever the last one left it
+    menuScrollTop.current = 0;
     setScreen('attract');
   }, [cart]);
 
@@ -135,6 +150,35 @@ export default function App() {
     }
     setConfirmCancel(true);
   };
+
+  /**
+   * Whether it is safe to let a customer start an order at all.
+   *
+   * The old gate was `menu.error && products.length === 0`, which almost never
+   * fires: useMenu keeps the last good products when a fetch fails, so the real
+   * failure at a live site — kiosk booted this morning, backend dies at 7pm —
+   * left 171 cached products on screen and the gate open. The customer would then
+   * build an order, the PAX would arm, the CARD WOULD BE APPROVED, and only then
+   * would createPaidOrder fail, landing on "payment taken, show staff".
+   *
+   * Any failed fetch now closes the kiosk. A stale menu is an inconvenience; a
+   * charge with no order is money and trust.
+   */
+  const hasOrderableMenu = menu.products.some((product) => product.isAvailable);
+
+  const kioskStatus: KioskStatus = menu.error
+    ? 'unavailable'
+    : menu.products.length === 0 && menu.isLoading
+      ? 'loading'
+      : // A 200 that returns nothing orderable - bad deploy, unpublished menu, or
+        // staff marking everything sold out at close - is not "ready". Letting the
+        // customer through here strands them on an empty menu with no explanation.
+        !hasOrderableMenu
+        ? 'unavailable'
+        : 'ready';
+
+  /** Off in a takeaway-only shop, and then it must not be reachable mid-order either */
+  const canChangeOrderType = settings?.orderTypePrompt !== false;
 
   // Never interrupt a payment, and never time out the attract screen
   const idleEnabled = screen === 'order-type' || screen === 'menu' || screen === 'cart';
@@ -366,7 +410,7 @@ export default function App() {
         <AttractScreen
           onStart={startOrder}
           onAdminHold={() => setShowPin(true)}
-          offline={Boolean(menu.error) && menu.products.length === 0}
+          status={kioskStatus}
           highlights={menu.highlights}
           currencySymbol={menu.shop.currencySymbol}
         />
@@ -374,11 +418,24 @@ export default function App() {
 
       {screen === 'order-type' && (
         <OrderTypeScreen
+          currentType={orderTypeReturn ? orderType : null}
+          isChanging={orderTypeReturn !== null}
+          itemCount={cart.itemCount}
+          total={cart.total}
+          currencySymbol={menu.shop.currencySymbol}
           onSelect={(type) => {
             setOrderType(type);
-            setScreen('menu');
+            setScreen(orderTypeReturn ?? 'menu');
+            setOrderTypeReturn(null);
           }}
-          onBack={requestCancel}
+          onBack={() => {
+            if (orderTypeReturn) {
+              setScreen(orderTypeReturn);
+              setOrderTypeReturn(null);
+              return;
+            }
+            requestCancel();
+          }}
         />
       )}
 
@@ -396,10 +453,18 @@ export default function App() {
           onReload={menu.reload}
           onSelectProduct={setActiveProduct}
           onQuickAdd={handleQuickAdd}
+          onSoldOut={(product) =>
+            showToast(`Sorry — ${displayName(product.name)} is sold out today`)
+          }
           onViewOrder={() => setScreen('cart')}
-          onChangeOrderType={() => setScreen('order-type')}
+          canChangeOrderType={canChangeOrderType}
+          onChangeOrderType={() => {
+            setOrderTypeReturn('menu');
+            setScreen('order-type');
+          }}
           onCancelOrder={requestCancel}
           onHelp={() => setShowHelp(true)}
+          scrollTopRef={menuScrollTop}
         />
       )}
 
@@ -419,7 +484,11 @@ export default function App() {
           onAddMore={() => setScreen('menu')}
           onPay={requestPayment}
           onCancelOrder={requestCancel}
-          onChangeOrderType={() => setScreen('order-type')}
+          canChangeOrderType={canChangeOrderType}
+          onChangeOrderType={() => {
+            setOrderTypeReturn('cart');
+            setScreen('order-type');
+          }}
         />
       )}
 

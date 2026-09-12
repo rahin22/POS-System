@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PackageOpen, X } from 'lucide-react';
 import { ProductCard } from '../components/ProductCard';
 import type { Product } from '../types';
 import { displayName, money } from '../lib/format';
@@ -11,6 +11,7 @@ interface CategorySheetProps {
   total: number;
   onSelectProduct: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
+  onSoldOut: (product: Product) => void;
   onViewOrder: () => void;
   onClose: () => void;
 }
@@ -30,9 +31,11 @@ export function CategorySheet({
   total,
   onSelectProduct,
   onQuickAdd,
+  onSoldOut,
   onViewOrder,
   onClose,
 }: CategorySheetProps) {
+  const available = products.filter((product) => product.isAvailable).length;
   return (
     <div className="fixed inset-0 z-40 flex flex-col justify-end bg-ink-900/50">
       <div className="animate-fade-up flex h-[94%] flex-col overflow-hidden rounded-t-[2.5rem] bg-cream-100">
@@ -41,8 +44,8 @@ export function CategorySheet({
             <h2 className="text-kiosk-xl font-extrabold text-ink-900">
               {displayName(categoryName)}
             </h2>
-            <p className="mt-1 text-kiosk-xs font-semibold text-ink-500">
-              {products.length} item{products.length === 1 ? '' : 's'}
+            <p className="mt-1 text-kiosk-xs font-semibold text-ink-600">
+              {available} item{available === 1 ? '' : 's'}
             </p>
           </div>
 
@@ -57,18 +60,41 @@ export function CategorySheet({
         </header>
 
         <div className="flex-1 overflow-y-auto px-12 py-8">
-          <div className="grid grid-cols-2 gap-7">
-            {products.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                index={index}
-                currencySymbol={currencySymbol}
-                onSelect={onSelectProduct}
-                onQuickAdd={onQuickAdd}
-              />
-            ))}
-          </div>
+          {available === 0 ? (
+            /*
+             * Gated on `available`, not products.length. useMenu drops categories
+             * with no products at all, so length === 0 was unreachable — and the
+             * close-out case it was written for rendered as a header reading
+             * "0 items" above a grid of eight sold-out cards.
+             */
+            <div className="flex h-full flex-col items-center justify-center gap-7 text-center">
+              <PackageOpen className="h-24 w-24 text-ink-400" aria-hidden="true" />
+              <p className="text-kiosk-lg font-extrabold text-ink-900">
+                Nothing left in {displayName(categoryName)}
+              </p>
+              <p className="max-w-[720px] text-kiosk-base text-ink-700">
+                Everything here has sold out for today. Have a look at the rest of the menu.
+              </p>
+              <button type="button" onClick={onClose} className="btn-primary mt-2 px-14 text-kiosk-base">
+                <ChevronLeft className="h-9 w-9" aria-hidden="true" />
+                All categories
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-7">
+              {products.map((product, index) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  index={index}
+                  currencySymbol={currencySymbol}
+                  onSelect={onSelectProduct}
+                  onQuickAdd={onQuickAdd}
+                  onSoldOut={onSoldOut}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <footer className="shrink-0 bg-cream-50 px-12 py-6 shadow-bar">

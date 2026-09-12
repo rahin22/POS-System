@@ -1,6 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./src/renderer/**/*.{js,ts,jsx,tsx}'],
+  future: {
+    // This machine has no pointer. Chromium still applies :hover to the last
+    // element touched and keeps it there, so hover styling doubles as a stuck
+    // "selected" look. Compiling every hover: variant behind (hover: hover)
+    // makes the whole codebase, including .btn-* in index.css, touch-correct.
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     extend: {
       colors: {

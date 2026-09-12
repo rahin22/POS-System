@@ -17,6 +17,8 @@ interface CartScreenProps {
   onAddMore: () => void;
   onPay: () => void;
   onCancelOrder: () => void;
+  /** False in a takeaway-only shop: the chip must not be a way back in */
+  canChangeOrderType: boolean;
   onChangeOrderType: () => void;
 }
 
@@ -35,6 +37,7 @@ export function CartScreen({
   onAddMore,
   onPay,
   onCancelOrder,
+  canChangeOrderType,
   onChangeOrderType,
 }: CartScreenProps) {
   return (
@@ -53,21 +56,34 @@ export function CartScreen({
       </header>
 
       <div className="flex-1 overflow-y-auto px-12 py-8">
-        <button
-          type="button"
-          onClick={onChangeOrderType}
-          className="touchable focus-ring mb-7 flex items-center gap-4 rounded-full border-2 border-cream-400 bg-white px-7 py-4"
-        >
-          {orderType === 'dine-in' ? (
-            <UtensilsCrossed className="h-8 w-8 text-brand-600" aria-hidden="true" />
-          ) : (
-            <ShoppingBag className="h-8 w-8 text-brand-600" aria-hidden="true" />
-          )}
-          <span className="text-kiosk-xs font-bold text-ink-800">
-            {orderType === 'dine-in' ? 'Eat In' : 'Take Away'}
+        {canChangeOrderType ? (
+          <button
+            type="button"
+            onClick={onChangeOrderType}
+            className="touchable focus-ring mb-7 flex items-center gap-4 rounded-full border-2 border-cream-400 bg-white px-7 py-4"
+          >
+            {orderType === 'dine-in' ? (
+              <UtensilsCrossed className="h-8 w-8 text-brand-700" aria-hidden="true" />
+            ) : (
+              <ShoppingBag className="h-8 w-8 text-brand-700" aria-hidden="true" />
+            )}
+            <span className="text-kiosk-xs font-bold text-ink-800">
+              {orderType === 'dine-in' ? 'Eat In' : 'Take Away'}
+            </span>
+            <span className="text-kiosk-xs font-bold text-brand-700">Change</span>
+          </button>
+        ) : (
+          <span className="mb-7 flex items-center gap-4 rounded-full border-2 border-cream-400 bg-cream-200 px-7 py-4">
+            {orderType === 'dine-in' ? (
+              <UtensilsCrossed className="h-8 w-8 text-ink-600" aria-hidden="true" />
+            ) : (
+              <ShoppingBag className="h-8 w-8 text-ink-600" aria-hidden="true" />
+            )}
+            <span className="text-kiosk-xs font-bold text-ink-800">
+              {orderType === 'dine-in' ? 'Eat In' : 'Take Away'}
+            </span>
           </span>
-          <span className="text-kiosk-xs font-bold text-brand-600">Change</span>
-        </button>
+        )}
 
         <ul className="space-y-6">
           {lines.map((line) => (
