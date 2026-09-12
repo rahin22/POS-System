@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   CreditCard,
   Download,
+  LayoutGrid,
   LogOut,
   Monitor,
   Printer,
@@ -9,7 +10,7 @@ import {
   Server,
   X,
 } from 'lucide-react';
-import type { KioskSettings, UpdateState } from '../types';
+import type { KioskSettings, MenuLayout, UpdateState } from '../types';
 
 interface AdminScreenProps {
   onClose: () => void;
@@ -281,6 +282,65 @@ export function AdminScreen({ onClose, onSettingsSaved }: AdminScreenProps) {
             <p className="text-base font-semibold text-success">Terminal paired successfully.</p>
           )}
           {pairingStatus === 'error' && <p className="text-base text-danger">{pairingError}</p>}
+        </Section>
+
+        <Section title="Menu layout" icon={LayoutGrid}>
+          <p className="text-base text-ink-500">How customers browse the menu</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            {([
+              {
+                value: 'cards' as MenuLayout,
+                title: 'Category cards',
+                description: 'A card per category, tap to open its products',
+                preview: (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className="h-7 rounded bg-brand-200" />
+                    ))}
+                  </div>
+                ),
+              },
+              {
+                value: 'scroll' as MenuLayout,
+                title: 'Scrolling menu',
+                description: 'One long menu split by category headings',
+                preview: (
+                  <>
+                    <div className="h-2.5 w-16 rounded bg-brand-500" />
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      {Array.from({ length: 2 }).map((_, index) => (
+                        <div key={index} className="h-5 rounded bg-cream-400" />
+                      ))}
+                    </div>
+                    <div className="mt-2 h-2.5 w-14 rounded bg-brand-500" />
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      {Array.from({ length: 2 }).map((_, index) => (
+                        <div key={index} className="h-5 rounded bg-cream-400" />
+                      ))}
+                    </div>
+                  </>
+                ),
+              },
+            ]).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => update({ menuLayout: option.value })}
+                className={`touchable rounded-xl border-2 p-4 text-left ${
+                  settings.menuLayout === option.value
+                    ? 'border-brand-500 bg-brand-100'
+                    : 'border-cream-400 bg-white hover:bg-cream-200'
+                }`}
+              >
+                <div className="mb-3 rounded-lg border border-cream-400 bg-cream-50 p-3">
+                  {option.preview}
+                </div>
+                <p className="text-lg font-bold text-ink-900">{option.title}</p>
+                <p className="mt-1 text-sm text-ink-500">{option.description}</p>
+              </button>
+            ))}
+          </div>
         </Section>
 
         <Section title="Screen & behaviour" icon={Monitor}>

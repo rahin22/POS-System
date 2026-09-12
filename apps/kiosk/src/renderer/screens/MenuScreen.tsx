@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, HelpCircle, RefreshCw, ShoppingBag, UtensilsCrossed, X } from 'lucide-react';
 import { ProductCard } from '../components/ProductCard';
+import { CategoryCard } from '../components/CategoryCard';
+import { CategorySheet } from './CategorySheet';
 import { BrandMark } from '../components/BrandMark';
-import type { Category, OrderType, Product } from '../types';
+import type { Category, MenuLayout, OrderType, Product } from '../types';
 import { displayName, money } from '../lib/format';
 
 interface MenuScreenProps {
+  /** 'cards' shows a category grid that opens a product sheet; 'scroll' is one long menu */
+  layout: MenuLayout;
   categories: Category[];
   productsByCategory: (categoryId: string) => Product[];
   currencySymbol: string;
@@ -24,6 +28,7 @@ interface MenuScreenProps {
 }
 
 export function MenuScreen({
+  layout,
   categories,
   productsByCategory,
   currencySymbol,
@@ -41,6 +46,7 @@ export function MenuScreen({
   onHelp,
 }: MenuScreenProps) {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -66,22 +72,23 @@ export function MenuScreen({
   }, [categories]);
 
   useEffect(() => {
+    if (layout !== 'scroll') return;
     const container = scrollRef.current;
     if (!container) return;
     syncActiveFromScroll();
     container.addEventListener('scroll', syncActiveFromScroll, { passive: true });
     return () => container.removeEventListener('scroll', syncActiveFromScroll);
-  }, [syncActiveFromScroll]);
+  }, [layout, syncActiveFromScroll]);
 
   // Keep the active chip visible — a rail you can't see the end of is useless
   useEffect(() => {
-    if (!activeCategoryId) return;
+    if (layout !== 'scroll' || !activeCategoryId) return;
     chipRefs.current[activeCategoryId]?.scrollIntoView({
       behavior: 'smooth',
       inline: 'center',
       block: 'nearest',
     });
-  }, [activeCategoryId]);
+  }, [layout, activeCategoryId]);
 
   const jumpToCategory = (categoryId: string) => {
     const section = sectionRefs.current[categoryId];
@@ -108,6 +115,18 @@ export function MenuScreen({
       clearInterval(poll);
     }, 4000);
   };
+
+  useEffect(() => {
+    if (layout !== 'cards') setOpenCategoryId(null);
+  }, [layout]);
+
+  const openCategory = categories.find((category) => category.id === openCategoryId) || null;
+
+  /** Thumbnail for a category tile: the first product in it that has a photo */
+  const categoryThumbnail = (categoryId: string) =>
+    productsByCategory(categoryId)
+      .map((product) => product.imageUrl || product.image)
+      .find((url): url is string => Boolean(url));
 
   return (
     <div className="flex h-full flex-col bg-cream-100">
@@ -154,6 +173,7 @@ export function MenuScreen({
         </div>
 
         {/* Category rail: jump-navigation for the single scrolling menu */}
+        {layout === 'scroll' && (
         <div ref={railRef} className="hide-scrollbar rail-fade -mx-12 mt-6 overflow-x-auto px-12">
           <div className="flex min-w-max gap-3">
             {isLoading && categories.length === 0
@@ -182,6 +202,7 @@ export function MenuScreen({
                 })}
           </div>
         </div>
+        )}
       </header>
 
       {/* One continuous menu, divided by category */}
@@ -201,6 +222,22 @@ export function MenuScreen({
               <div key={index} className="h-64 animate-pulse rounded-kiosk bg-cream-200" />
             ))}
           </div>
+        ) : layout === 'cards' ? (
+          <>
+            <h2 className="mb-7 text-kiosk-xl font-extrabold text-ink-900">Explore our menu</h2>
+            <div className="grid grid-cols-2 gap-7">
+              {categories.map((category, index) => (
+                <CategoryCard
+                  key={category.id}
+                  name={category.name}
+                  productCount={productsByCategory(category.id).length}
+                  imageUrl={categoryThumbnail(category.id)}
+                  index={index}
+                  onSelect={() => setOpenCategoryId(category.id)}
+                />
+              ))}
+            </div>
+          </>
         ) : (
           categories.map((category) => {
             const products = productsByCategory(category.id);
@@ -245,7 +282,9 @@ export function MenuScreen({
         <div className="flex h-[104px] items-center">
           {itemCount === 0 ? (
             <p className="w-full text-center text-kiosk-sm font-semibold text-ink-500">
-              Tap an item to add it to your order
+              {layout === 'cards'
+                ? "Tap a category to see what's inside"
+                : 'Tap an item to add it to your order'}
             </p>
           ) : (
             <button
@@ -267,6 +306,20 @@ export function MenuScreen({
           )}
         </div>
       </footer>
+
+      {openCategory && (
+        <CategorySheet
+          categoryName={openCategory.name}
+          products={productsByCategory(openCategory.id)}
+          currencySymbol={currencySymbol}
+          itemCount={itemCount}
+          total={total}
+          onSelectProduct={onSelectProduct}
+          onQuickAdd={onQuickAdd}
+          onViewOrder={onViewOrder}
+          onClose={() => setOpenCategoryId(null)}
+        />
+      )}
     </div>
   );
 }

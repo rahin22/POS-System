@@ -57,6 +57,13 @@ export interface ShopSettings {
 
 export type OrderType = 'dine-in' | 'takeaway';
 
+/**
+ * How the menu is browsed.
+ * 'cards'  - a grid of category cards, each opening a sheet of its products
+ * 'scroll' - one continuous menu with category divider headings
+ */
+export type MenuLayout = 'cards' | 'scroll';
+
 export interface PlacedOrder {
   id: string;
   orderNumber: number;
@@ -71,6 +78,7 @@ export interface KioskSettings {
   printerName: string;
   paperWidthMm: number;
   receiptCopies: number;
+  menuLayout: MenuLayout;
   attractTimeoutSeconds: number;
   adminPin: string;
   orderTypePrompt: boolean;

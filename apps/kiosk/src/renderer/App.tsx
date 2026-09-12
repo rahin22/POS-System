@@ -342,6 +342,7 @@ export default function App() {
 
       {screen === 'menu' && (
         <MenuScreen
+          layout={settings.menuLayout}
           categories={menu.categories}
           productsByCategory={menu.productsByCategory}
           currencySymbol={menu.shop.currencySymbol}

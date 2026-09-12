@@ -24,6 +24,7 @@ export function installBrowserShim() {
     printerName: 'Preview Printer',
     paperWidthMm: 72,
     receiptCopies: 1,
+    menuLayout: 'cards' as const,
     attractTimeoutSeconds: 60,
     adminPin: '1234',
     orderTypePrompt: true,

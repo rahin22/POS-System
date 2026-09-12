@@ -17,6 +17,8 @@ const store = new Store({
     paperWidthMm: 72,
     receiptCopies: 1,
     // Ordering behaviour
+    // 'cards' = category grid that opens a product sheet, 'scroll' = one long menu
+    menuLayout: 'cards' as string,
     attractTimeoutSeconds: 60,
     adminPin: '1234',
     orderTypePrompt: true,
@@ -212,6 +214,7 @@ ipcMain.handle('get-settings', () => ({
   printerName: store.get('printerName'),
   paperWidthMm: store.get('paperWidthMm'),
   receiptCopies: store.get('receiptCopies'),
+  menuLayout: store.get('menuLayout'),
   attractTimeoutSeconds: store.get('attractTimeoutSeconds'),
   adminPin: store.get('adminPin'),
   orderTypePrompt: store.get('orderTypePrompt'),
