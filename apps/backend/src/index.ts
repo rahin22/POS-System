@@ -13,6 +13,7 @@ import printRoutes from './routes/print';
 import couponRoutes from './routes/coupons';
 import modifierRoutes from './routes/modifiers';
 import modifierGroupRoutes from './routes/modifier-groups';
+import { shopDayKey, shopMidnightUtc, SHOP_TIME_ZONE } from './lib/shopTime';
 
 // Initialize Prisma with connection pool settings
 export const prisma = new PrismaClient({
@@ -100,16 +101,11 @@ const PORT = process.env.PORT || 3001;
 // Archive previous day's orders at midnight
 async function archivePreviousDayOrders() {
   try {
-    // Get current time in Sydney timezone
-    const nowInSydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-    const todayMidnight = new Date(nowInSydney);
-    todayMidnight.setHours(0, 0, 0, 0);
-    
-    // Convert back to UTC for database query
-    const sydneyOffset = 11 * 60 * 60 * 1000; // AEDT is UTC+11
-    const todayMidnightUTC = new Date(todayMidnight.getTime() - sydneyOffset + todayMidnight.getTimezoneOffset() * 60 * 1000);
-    
-    console.log(`[Archive] Sydney time: ${nowInSydney.toISOString()}, cutoff: ${todayMidnightUTC.toISOString()}`);
+    // Anything created before today's shop-local midnight belongs to a previous day
+    const today = shopDayKey();
+    const todayMidnightUTC = shopMidnightUtc(today);
+
+    console.log(`[Archive] Shop day: ${today}, cutoff: ${todayMidnightUTC.toISOString()}`);
     
     const result = await prisma.order.updateMany({
       where: {
@@ -140,7 +136,7 @@ async function main() {
 
     // Schedule midnight archive job (runs at 00:00 every day)
     cron.schedule('0 0 * * *', archivePreviousDayOrders, {
-      timezone: 'Australia/Sydney',
+      timezone: SHOP_TIME_ZONE,
     });
     console.log('⏰ Midnight archive job scheduled');
 

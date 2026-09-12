@@ -1,10 +1,16 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../index';
 import { createOrderSchema, updateOrderSchema } from '@kebab-pos/shared';
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth';
 import { printReceipt } from '../services/printer';
+import { shopDayKey, shopDayRange, shopDayLockId } from '../lib/shopTime';
 
 const router = Router();
+
+// Arbitrary namespace for the daily order-number advisory lock, so its keys can never
+// collide with an advisory lock taken anywhere else against the same database.
+const ORDER_NUMBER_LOCK_NAMESPACE = 4417;
 
 // Get all orders
 router.get('/', authenticate, async (req: AuthRequest, res) => {
@@ -15,25 +21,15 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // Date filter - use Sydney timezone
+    // Date filter - shop-local day boundaries (handles AEST/AEDT)
     let dateFilter = {};
     if (date) {
-      // Parse the date and convert to Sydney timezone boundaries
-      const dateStr = date as string; // Format: YYYY-MM-DD
-      
-      // Sydney is UTC+10 (AEST) or UTC+11 (AEDT)
-      // We need to find midnight in Sydney and convert to UTC
-      const sydneyOffset = 11 * 60; // AEDT offset in minutes (adjust to 10 for AEST if needed)
-      
-      // Create start of day in Sydney (midnight)
-      const startDate = new Date(`${dateStr}T00:00:00+11:00`);
-      // Create end of day in Sydney (23:59:59.999)
-      const endDate = new Date(`${dateStr}T23:59:59.999+11:00`);
-      
+      const { start, end } = shopDayRange(date as string); // Format: YYYY-MM-DD
+
       dateFilter = {
         createdAt: {
-          gte: startDate,
-          lte: endDate,
+          gte: start,
+          lt: end,
         },
       };
     }
@@ -301,7 +297,9 @@ router.post('/', async (req: AuthRequest, res) => {
 
     // Calculate order items
     let subtotal = 0;
-    const orderItems = [];
+    // Explicitly typed: it is now built outside the transaction callback that consumes
+    // it, so TypeScript cannot infer the element type from later pushes.
+    const orderItems: Prisma.OrderItemUncheckedCreateWithoutOrderInput[] = [];
 
     for (const item of items) {
       const product = productMap.get(item.productId);
@@ -392,65 +390,71 @@ router.post('/', async (req: AuthRequest, res) => {
     const total = afterDiscount; // Total already includes GST
     const tax = total - (total / (1 + gstRate / 100)); // Extract GST from total
 
-    // Get next daily order number (using Sydney timezone)
-    const nowInSydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-    const todayMidnight = new Date(nowInSydney);
-    todayMidnight.setHours(0, 0, 0, 0);
-    const tomorrowMidnight = new Date(todayMidnight);
-    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
-    
-    // Convert to UTC for database query
-    const sydneyOffset = 11 * 60 * 60 * 1000; // AEDT is UTC+11
-    const localOffset = todayMidnight.getTimezoneOffset() * 60 * 1000;
-    const todayUTC = new Date(todayMidnight.getTime() - sydneyOffset + localOffset);
-    const tomorrowUTC = new Date(tomorrowMidnight.getTime() - sydneyOffset + localOffset);
+    // Allocate the daily order number and create the order in a single transaction,
+    // guarded by an advisory lock on the shop-local trading day. Without the lock two
+    // devices can read the same maximum and both write it, which is how duplicate
+    // order numbers were being issued.
+    const tradingDay = shopDayKey();
+    const { start: dayStart, end: dayEnd } = shopDayRange(tradingDay);
 
-    const lastOrderToday = await prisma.order.findFirst({
-      where: {
-        createdAt: {
-          gte: todayUTC,
-          lt: tomorrowUTC,
-        },
-      },
-      orderBy: { orderNumber: 'desc' },
-      select: { orderNumber: true },
-    });
+    const order = await prisma.$transaction(
+      async (tx) => {
+        // Released automatically when the transaction ends. Scoped to this trading
+        // day, so concurrent creates only ever wait on each other, never on anything
+        // else touching the database.
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(
+            ${ORDER_NUMBER_LOCK_NAMESPACE}::int4,
+            ${shopDayLockId(tradingDay)}::int4
+          )
+        `;
 
-    const orderNumber = (lastOrderToday?.orderNumber || 0) + 1;
-
-    // Create order
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        type: type.replace('-', '_') as any,
-        source: source || 'pos',
-        ...(paymentMethod ? { paymentMethod: paymentMethod as any } : {}),
-        ...(paymentStatus ? { paymentStatus: paymentStatus as any } : {}),
-        subtotal,
-        discount: discountAmount,
-        discountType: discount?.type,
-        discountValue: discount?.value,
-        couponCode: discount?.code,
-        tax,
-        total,
-        customerName,
-        customerPhone,
-        customerEmail,
-        notes,
-        createdById: req.user?.id,
-        items: {
-          create: orderItems,
-        },
-      },
-      include: {
-        items: {
-          include: {
-            product: true,
-            modifiers: true,
+        const lastOrderToday = await tx.order.findFirst({
+          where: {
+            createdAt: {
+              gte: dayStart,
+              lt: dayEnd,
+            },
           },
-        },
+          orderBy: { orderNumber: 'desc' },
+          select: { orderNumber: true },
+        });
+
+        return tx.order.create({
+          data: {
+            orderNumber: (lastOrderToday?.orderNumber || 0) + 1,
+            type: type.replace('-', '_') as any,
+            source: source || 'pos',
+            ...(paymentMethod ? { paymentMethod: paymentMethod as any } : {}),
+            ...(paymentStatus ? { paymentStatus: paymentStatus as any } : {}),
+            subtotal,
+            discount: discountAmount,
+            discountType: discount?.type,
+            discountValue: discount?.value,
+            couponCode: discount?.code,
+            tax,
+            total,
+            customerName,
+            customerPhone,
+            customerEmail,
+            notes,
+            createdById: req.user?.id,
+            items: {
+              create: orderItems,
+            },
+          },
+          include: {
+            items: {
+              include: {
+                product: true,
+                modifiers: true,
+              },
+            },
+          },
+        });
       },
-    });
+      { maxWait: 5000, timeout: 10000 }
+    );
 
     res.status(201).json({
       success: true,
