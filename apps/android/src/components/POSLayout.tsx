@@ -8,6 +8,8 @@ import { CheckoutScreen } from './CheckoutScreen';
 import { DiscountModal } from './DiscountModal';
 import ItemEditModal from './ItemEditModal';
 import { WeightModal } from './WeightModal';
+import { ModifierSheet } from './ModifierSheet';
+import type { SheetModifier, SheetProduct } from './ModifierSheet';
 import { useProducts } from '../hooks/useProducts';
 import { useMenuLayout } from '../hooks/useMenuLayout';
 import { useCart, CartItem } from '../hooks/useCart';
@@ -38,6 +40,7 @@ export function POSLayout() {
   const [vatRate, setVatRate] = useState(10);
   const [currencySymbol, setCurrencySymbol] = useState('$');
   const [weightProduct, setWeightProduct] = useState<WeightProduct | null>(null);
+  const [modifierProduct, setModifierProduct] = useState<SheetProduct | null>(null);
 
   const cart = useCart(vatRate);
 
@@ -107,6 +110,10 @@ export function POSLayout() {
     );
   };
 
+  // Groups with nothing selectable in them must not trigger a popup
+  const choosableGroups = (product: any) =>
+    (product.modifierGroups || []).filter((g: any) => (g.modifiers?.length ?? 0) > 0);
+
   const handleProductClick = (product: any) => {
     // Check if product has pricePerKg - show weight modal
     if (product.pricePerKg) {
@@ -116,15 +123,45 @@ export function POSLayout() {
         price: product.price,
         pricePerKg: product.pricePerKg,
       });
-    } else {
-      // Standard product - add directly
-      cart.addItem(
-        { id: product.id, name: product.name, price: product.price },
-        1,
-        [],
-        undefined
-      );
+      return;
     }
+
+    // Sauce, salad and the like are asked for up front rather than buried behind
+    // an edit in the cart, matching how the kiosk prompts.
+    const groups = choosableGroups(product);
+    if (groups.length > 0) {
+      setModifierProduct({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        description: product.description,
+        modifierGroups: groups,
+      });
+      return;
+    }
+
+    // Nothing to ask about - straight into the cart
+    cart.addItem(
+      { id: product.id, name: product.name, price: product.price },
+      1,
+      [],
+      undefined
+    );
+  };
+
+  const handleAddWithModifiers = (
+    product: SheetProduct,
+    quantity: number,
+    modifiers: SheetModifier[],
+    notes?: string
+  ) => {
+    cart.addItem(
+      { id: product.id, name: product.name, price: product.price },
+      quantity,
+      modifiers,
+      notes
+    );
+    setModifierProduct(null);
   };
 
   const handleAddByQuantity = (quantity: number) => {
@@ -418,6 +455,16 @@ export function POSLayout() {
           item={editingItem}
           onSave={cart.updateItem}
           onClose={() => setEditingItem(null)}
+        />
+      )}
+
+      {/* Modifier Sheet - opens on tapping a product that carries modifier groups */}
+      {modifierProduct && (
+        <ModifierSheet
+          product={modifierProduct}
+          currencySymbol={currencySymbol}
+          onAdd={handleAddWithModifiers}
+          onClose={() => setModifierProduct(null)}
         />
       )}
 

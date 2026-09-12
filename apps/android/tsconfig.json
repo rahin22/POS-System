@@ -19,12 +19,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "ignoreDeprecations": "6.0",
 
-    /* Paths */
-    "baseUrl": ".",
+    /* Paths - relative to this file, so no deprecated baseUrl is needed */
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],
