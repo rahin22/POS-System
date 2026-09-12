@@ -60,6 +60,11 @@ export const orderItemSchema = z.object({
 
 export const createOrderSchema = z.object({
   type: z.enum(['dine-in', 'takeaway', 'delivery', 'online']),
+  source: z.enum(['pos', 'kiosk', 'online']).optional(),
+  // Lets an unattended device (kiosk) record the payment it already took in the
+  // same call that creates the order, so there is never a paid-but-unrecorded gap.
+  paymentMethod: z.enum(['cash', 'card', 'online']).optional(),
+  paymentStatus: z.enum(['pending', 'paid']).optional(),
   items: z.array(orderItemSchema).min(1, 'Order must have at least one item'),
   customerName: z.string().max(100).optional(),
   customerPhone: z.string().max(20).optional(),

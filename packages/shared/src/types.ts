@@ -138,7 +138,12 @@ export interface Order {
   updatedAt: Date;
   completedAt?: Date;
   createdById?: string;
+  source?: OrderSource;
+  kitchenPrintedAt?: Date | null;
+  kitchenPrintedBy?: string | null;
 }
+
+export type OrderSource = 'pos' | 'kiosk' | 'online';
 
 export interface CreateOrderInput {
   type: OrderType;

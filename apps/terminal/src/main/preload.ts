@@ -72,6 +72,7 @@ declare global {
         vfdBaudRate: number;
         customLogoPath: string;
         customQrCodePath: string;
+        menuLayout: 'tabs' | 'cards';
         eftposEnabled: boolean;
         eftposEnvironment: 'dev' | 'prod';
         eftposRegisterID: string;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2, Download, CreditCard } from 'lucide-react';
+import { Settings, Printer, RefreshCw, Monitor, Image, QrCode, Trash2, Download, CreditCard, LayoutGrid } from 'lucide-react';
+import { MenuLayout, DEFAULT_MENU_LAYOUT, notifyMenuLayoutChange } from '../hooks/useMenuLayout';
 
 // Type for the update-related electron API (extends the base types)
 interface ElectronUpdateAPI {
@@ -22,6 +23,7 @@ export function SettingsPage() {
     vfdBaudRate: 9600,
     customLogoPath: '',
     customQrCodePath: '',
+    menuLayout: DEFAULT_MENU_LAYOUT as MenuLayout,
     eftposEnabled: false,
     eftposEnvironment: 'prod' as 'dev' | 'prod',
     eftposRegisterName: 'Main Register',
@@ -67,6 +69,7 @@ export function SettingsPage() {
         vfdBaudRate: s.vfdBaudRate,
         customLogoPath: s.customLogoPath,
         customQrCodePath: s.customQrCodePath,
+        menuLayout: s.menuLayout === 'cards' ? 'cards' : 'tabs',
         eftposEnabled: s.eftposEnabled,
         eftposEnvironment: s.eftposEnvironment,
         eftposRegisterName: s.eftposRegisterName,
@@ -209,6 +212,7 @@ export function SettingsPage() {
   const handleSave = async () => {
     if (window.electronAPI?.setSettings) {
       await window.electronAPI.setSettings(settings);
+      notifyMenuLayoutChange(settings.menuLayout);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     }
@@ -352,6 +356,69 @@ export function SettingsPage() {
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Menu Layout Section */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-1">
+                <LayoutGrid className="w-5 h-5 text-gray-600" />
+                <h2 className="text-lg font-semibold">Menu Layout</h2>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                How products are browsed on the POS screen
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  {
+                    value: 'tabs' as MenuLayout,
+                    title: 'Category Tabs',
+                    description: 'Slider of categories with the product grid below',
+                    preview: (
+                      <>
+                        <div className="flex gap-1">
+                          <div className="h-3 w-10 rounded bg-primary-500" />
+                          <div className="h-3 w-10 rounded bg-gray-200" />
+                          <div className="h-3 w-10 rounded bg-gray-200" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 mt-2">
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="h-5 rounded bg-gray-200" />
+                          ))}
+                        </div>
+                      </>
+                    ),
+                  },
+                  {
+                    value: 'cards' as MenuLayout,
+                    title: 'Category Cards',
+                    description: 'One card per category, click to open its products',
+                    preview: (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <div key={i} className="h-7 rounded bg-primary-200" />
+                        ))}
+                      </div>
+                    ),
+                  },
+                ]).map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSettings({ ...settings, menuLayout: option.value })}
+                    className={`text-left p-3 rounded-xl border-2 transition-colors ${
+                      settings.menuLayout === option.value
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="bg-gray-50 rounded-lg p-2 mb-2 border border-gray-100">
+                      {option.preview}
+                    </div>
+                    <p className="font-semibold text-gray-900">{option.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* VFD Customer Display Section */}

@@ -113,6 +113,109 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Kitchen docket queue: orders that arrived without staff involvement (kiosk/online)
+// and have not had a kitchen docket printed yet.
+// NOTE: must stay above the '/:id' route or Express will capture it.
+router.get('/kitchen/queue', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const {
+      sources = 'kiosk,online',
+      sinceMinutes = '360',
+      requirePaid = 'true',
+      limit = '20',
+    } = req.query;
+
+    const since = new Date(Date.now() - parseInt(sinceMinutes as string) * 60 * 1000);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        source: { in: (sources as string).split(',').map((s) => s.trim()).filter(Boolean) },
+        kitchenPrintedAt: null,
+        status: { not: 'cancelled' },
+        createdAt: { gte: since },
+        ...(requirePaid === 'true' ? { paymentStatus: 'paid' as any } : {}),
+      },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, name: true } },
+            modifiers: { select: { id: true, name: true, price: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: parseInt(limit as string),
+    });
+
+    res.json({ success: true, data: orders });
+  } catch (error) {
+    console.error('Kitchen queue error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get kitchen queue',
+    });
+  }
+});
+
+// Claim an order for kitchen printing. Atomic: only the first caller gets claimed=true,
+// so two POS devices polling the queue can never both print the same docket.
+router.post('/:id/kitchen-print-claim', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { device } = req.body || {};
+
+    const claim = await prisma.order.updateMany({
+      where: { id: req.params.id, kitchenPrintedAt: null },
+      data: {
+        kitchenPrintedAt: new Date(),
+        kitchenPrintedBy: typeof device === 'string' ? device.slice(0, 100) : null,
+      },
+    });
+
+    if (claim.count === 0) {
+      // Already printed by another device (or the order doesn't exist)
+      return res.json({ success: true, claimed: false });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        items: {
+          include: {
+            product: true,
+            modifiers: true,
+          },
+        },
+      },
+    });
+
+    res.json({ success: true, claimed: true, data: order });
+  } catch (error) {
+    console.error('Kitchen print claim error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to claim order for kitchen printing',
+    });
+  }
+});
+
+// Release a claim so the docket can be retried after a failed print
+router.post('/:id/kitchen-print-release', authenticate, async (req: AuthRequest, res) => {
+  try {
+    await prisma.order.update({
+      where: { id: req.params.id },
+      data: { kitchenPrintedAt: null, kitchenPrintedBy: null },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Kitchen print release error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to release kitchen print claim',
+    });
+  }
+});
+
 // Get single order
 router.get('/:id', authenticate, async (req, res) => {
   try {
@@ -166,7 +269,26 @@ router.post('/', async (req: AuthRequest, res) => {
       });
     }
 
-    const { type, items, customerName, customerPhone, customerEmail, notes, discount } = validation.data;
+    const {
+      type,
+      source,
+      paymentMethod,
+      paymentStatus,
+      items,
+      customerName,
+      customerPhone,
+      customerEmail,
+      notes,
+      discount,
+    } = validation.data;
+
+    // A payment can only be recorded at creation time if the method is stated too
+    if (paymentStatus === 'paid' && !paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        error: 'paymentMethod is required when creating an order as paid',
+      });
+    }
 
     // Get products and calculate totals
     const productIds = items.map((item) => item.productId);
@@ -301,6 +423,9 @@ router.post('/', async (req: AuthRequest, res) => {
       data: {
         orderNumber,
         type: type.replace('-', '_') as any,
+        source: source || 'pos',
+        ...(paymentMethod ? { paymentMethod: paymentMethod as any } : {}),
+        ...(paymentStatus ? { paymentStatus: paymentStatus as any } : {}),
         subtotal,
         discount: discountAmount,
         discountType: discount?.type,

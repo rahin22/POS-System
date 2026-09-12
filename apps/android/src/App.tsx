@@ -6,6 +6,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { LoginScreen } from './components/LoginScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ApiProvider, useApi } from './context/ApiContext';
+import { useKitchenAutoPrint } from './hooks/useKitchenAutoPrint';
 import { createCompatibilityLayer } from './lib/platform';
 import logo from './assets/logo.png';
 
@@ -29,6 +30,9 @@ function AppContent() {
   const { fetchApi } = useApi();
   const [currentPage, setCurrentPage] = useState<Page>('pos');
   const [currencySymbol, setCurrencySymbol] = useState('$');
+
+  // Prints kitchen dockets for kiosk orders no matter which page is open
+  const kitchenPrint = useKitchenAutoPrint();
 
   // Load settings
   useEffect(() => {
@@ -118,6 +122,27 @@ function AppContent() {
         </div>
 
         <div className="flex items-center gap-4">
+          {kitchenPrint.enabled && (
+            <span
+              className="flex items-center gap-2 rounded-full bg-primary-600 px-3 py-1 text-xs font-medium"
+              title={
+                kitchenPrint.lastEvent
+                  ? `Last docket: #${kitchenPrint.lastEvent.orderNumber} ${
+                      kitchenPrint.lastEvent.success ? 'printed' : 'failed'
+                    }`
+                  : 'Watching for kiosk orders'
+              }
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  kitchenPrint.lastEvent && !kitchenPrint.lastEvent.success
+                    ? 'bg-red-400'
+                    : 'bg-green-400'
+                }`}
+              />
+              Kitchen
+            </span>
+          )}
           <span className="text-sm">{user.name}</span>
           <button
             onClick={logout}

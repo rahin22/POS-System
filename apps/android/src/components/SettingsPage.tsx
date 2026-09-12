@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Printer, Info, RefreshCw, Image, QrCode, Trash2, CreditCard } from 'lucide-react';
+import { Settings, Printer, Info, RefreshCw, Image, QrCode, Trash2, CreditCard, LayoutGrid } from 'lucide-react';
 import { printer, appInfo, settings as platformSettings } from '../lib/platform';
 import { getEftposSettings, saveEftposSettings, pair as eftposPair, EftposSettings } from '../lib/eftpos';
+import { getMenuLayout, setMenuLayout, MenuLayout, DEFAULT_MENU_LAYOUT } from '../hooks/useMenuLayout';
+import { KITCHEN_AUTOPRINT_KEY } from '../hooks/useKitchenAutoPrint';
 
 // Default assets
 import defaultLogoUrl from '../assets/receipt_logo.png';
@@ -12,6 +14,8 @@ export function SettingsPage() {
   const [appVersion, setAppVersion] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [printerEnabled, setPrinterEnabled] = useState(true);
+  const [menuLayout, setMenuLayoutState] = useState<MenuLayout>(DEFAULT_MENU_LAYOUT);
+  const [kitchenAutoPrint, setKitchenAutoPrint] = useState(false);
   const [customLogoPreview, setCustomLogoPreview] = useState<string | null>(null);
   const [customQrCodePreview, setCustomQrCodePreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +43,12 @@ export function SettingsPage() {
     // Get printer enabled setting
     const enabled = await platformSettings.get('printerEnabled', true);
     setPrinterEnabled(enabled);
+
+    // POS menu layout
+    setMenuLayoutState(await getMenuLayout());
+
+    // Kitchen docket auto-print
+    setKitchenAutoPrint(await platformSettings.get(KITCHEN_AUTOPRINT_KEY, false));
     
     // Load custom images from storage
     const customLogo = await platformSettings.get('customLogoBase64', null);
@@ -77,6 +87,18 @@ export function SettingsPage() {
     setIsRefreshing(true);
     await loadInfo();
     setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleSelectMenuLayout = async (layout: MenuLayout) => {
+    setMenuLayoutState(layout);
+    await setMenuLayout(layout);
+  };
+
+  const handleToggleKitchenAutoPrint = async (enabled: boolean) => {
+    setKitchenAutoPrint(enabled);
+    await platformSettings.set(KITCHEN_AUTOPRINT_KEY, enabled);
+    // The poller reads this on mount; a reload applies it immediately
+    window.location.reload();
   };
 
   const handleTogglePrinter = async (enabled: boolean) => {
@@ -156,6 +178,69 @@ export function SettingsPage() {
           </button>
         </div>
 
+        {/* Menu Layout */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+            <LayoutGrid className="w-5 h-5" />
+            Menu Layout
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            How products are browsed on the POS screen
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              {
+                value: 'tabs' as MenuLayout,
+                title: 'Category Tabs',
+                description: 'Slider of categories with the product grid below',
+                preview: (
+                  <>
+                    <div className="flex gap-1">
+                      <div className="h-3 w-10 rounded bg-primary-500" />
+                      <div className="h-3 w-10 rounded bg-gray-200" />
+                      <div className="h-3 w-10 rounded bg-gray-200" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 mt-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-5 rounded bg-gray-200" />
+                      ))}
+                    </div>
+                  </>
+                ),
+              },
+              {
+                value: 'cards' as MenuLayout,
+                title: 'Category Cards',
+                description: 'One card per category, tap to open its products',
+                preview: (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-7 rounded bg-primary-200" />
+                    ))}
+                  </div>
+                ),
+              },
+            ]).map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelectMenuLayout(option.value)}
+                className={`text-left p-3 rounded-xl border-2 transition-colors ${
+                  menuLayout === option.value
+                    ? 'border-primary-600 bg-primary-50'
+                    : 'border-gray-200 bg-white hover:bg-gray-50'
+                }`}
+              >
+                <div className="bg-gray-50 rounded-lg p-2 mb-2 border border-gray-100">
+                  {option.preview}
+                </div>
+                <p className="font-semibold text-gray-900">{option.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Printer Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -191,6 +276,27 @@ export function SettingsPage() {
               >
                 <div className={`w-6 h-6 bg-white rounded-full shadow transition-transform ${
                   printerEnabled ? 'translate-x-7' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+
+            {/* Kitchen docket auto-print */}
+            <div className="flex items-center justify-between">
+              <div className="pr-4">
+                <span className="text-gray-700">Auto-print kiosk dockets</span>
+                <p className="text-sm text-gray-500">
+                  Print a kitchen docket automatically when a self-service kiosk order arrives.
+                  Each docket is claimed first, so it can only ever print once.
+                </p>
+              </div>
+              <button
+                onClick={() => handleToggleKitchenAutoPrint(!kitchenAutoPrint)}
+                className={`shrink-0 w-14 h-8 rounded-full transition-colors ${
+                  kitchenAutoPrint ? 'bg-primary-600' : 'bg-gray-300'
+                }`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                  kitchenAutoPrint ? 'translate-x-7' : 'translate-x-1'
                 }`} />
               </button>
             </div>

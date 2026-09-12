@@ -126,6 +126,9 @@ export declare const orderItemSchema: z.ZodObject<{
 }>;
 export declare const createOrderSchema: z.ZodObject<{
     type: z.ZodEnum<["dine-in", "takeaway", "delivery", "online"]>;
+    source: z.ZodOptional<z.ZodEnum<["pos", "kiosk", "online"]>>;
+    paymentMethod: z.ZodOptional<z.ZodEnum<["cash", "card", "online"]>>;
+    paymentStatus: z.ZodOptional<z.ZodEnum<["pending", "paid"]>>;
     items: z.ZodArray<z.ZodObject<{
         productId: z.ZodString;
         quantity: z.ZodNumber;
@@ -191,6 +194,9 @@ export declare const createOrderSchema: z.ZodObject<{
         totalPrice?: number | undefined;
     }[];
     notes?: string | undefined;
+    source?: "online" | "pos" | "kiosk" | undefined;
+    paymentMethod?: "online" | "cash" | "card" | undefined;
+    paymentStatus?: "pending" | "paid" | undefined;
     customerName?: string | undefined;
     customerPhone?: string | undefined;
     customerEmail?: string | undefined;
@@ -214,6 +220,9 @@ export declare const createOrderSchema: z.ZodObject<{
         totalPrice?: number | undefined;
     }[];
     notes?: string | undefined;
+    source?: "online" | "pos" | "kiosk" | undefined;
+    paymentMethod?: "online" | "cash" | "card" | undefined;
+    paymentStatus?: "pending" | "paid" | undefined;
     customerName?: string | undefined;
     customerPhone?: string | undefined;
     customerEmail?: string | undefined;

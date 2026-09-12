@@ -16,3 +16,7 @@ apps/backend/migrate-data.js
 apps/backend/migrate-storage.js
 apps/backend/update-image-urls.js
 apps/android/.env
+
+apps/kiosk/.env
+apps/kiosk/dist
+apps/kiosk/release

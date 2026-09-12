@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
 import { CategoryTabs } from './CategoryTabs';
+import { CategoryCardGrid } from './CategoryCardGrid';
+import { CategoryProductsModal } from './CategoryProductsModal';
 import { CheckoutScreen } from './CheckoutScreen';
 import { DiscountModal } from './DiscountModal';
 import ItemEditModal from './ItemEditModal';
 import { WeightModal } from './WeightModal';
 import { useProducts } from '../hooks/useProducts';
+import { useMenuLayout } from '../hooks/useMenuLayout';
 import { useCart, CartItem } from '../hooks/useCart';
 import { useApi } from '../context/ApiContext';
 import { Search, X } from 'lucide-react';
@@ -21,7 +24,9 @@ interface WeightProduct {
 export function POSLayout() {
   const { fetchApi } = useApi();
   const { products, categories, isLoading, error, getProductsByCategory } = useProducts();
+  const menuLayout = useMenuLayout();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [popupCategoryId, setPopupCategoryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
@@ -72,6 +77,27 @@ export function POSLayout() {
       ? getProductsByCategory(selectedCategory)
       : products;
   })();
+
+  // Close the category popup if the layout is switched back to tabs in Settings
+  useEffect(() => {
+    if (menuLayout !== 'cards') setPopupCategoryId(null);
+  }, [menuLayout]);
+
+  // Card layout data: item count plus a thumbnail from the first product with an image
+  const categoryCards = categories.map((category) => {
+    const categoryProducts = getProductsByCategory(category.id);
+    const thumbnail = categoryProducts
+      .map((p) => (p as any).imageUrl || p.image)
+      .find((url): url is string => Boolean(url));
+    return {
+      id: category.id,
+      name: category.name,
+      productCount: categoryProducts.length,
+      imageUrl: thumbnail,
+    };
+  });
+
+  const popupCategory = categories.find((c) => c.id === popupCategoryId) || null;
 
   const handleAddCustomItem = (name: string, price: number) => {
     cart.addItem(
@@ -249,12 +275,14 @@ export function POSLayout() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Products */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Category tabs */}
-          <CategoryTabs
-            categories={categories}
-            selectedId={selectedCategory}
-            onSelect={setSelectedCategory}
-          />
+          {/* Category tabs (tab layout only) */}
+          {menuLayout === 'tabs' && (
+            <CategoryTabs
+              categories={categories}
+              selectedId={selectedCategory}
+              onSelect={setSelectedCategory}
+            />
+          )}
 
           {/* Search bar */}
           <div className="px-4 py-3 bg-white border-b border-gray-200">
@@ -283,13 +311,20 @@ export function POSLayout() {
             )}
           </div>
 
-          {/* Product grid */}
+          {/* Products: grid (tab layout) or category cards (card layout) */}
           <div className="flex-1 overflow-y-auto p-4">
-            <ProductGrid
-              products={displayedProducts}
-              currencySymbol={currencySymbol}
-              onProductClick={handleProductClick}
-            />
+            {menuLayout === 'cards' && !searchQuery.trim() ? (
+              <CategoryCardGrid
+                categories={categoryCards}
+                onSelect={setPopupCategoryId}
+              />
+            ) : (
+              <ProductGrid
+                products={displayedProducts}
+                currencySymbol={currencySymbol}
+                onProductClick={handleProductClick}
+              />
+            )}
           </div>
         </div>
 
@@ -316,6 +351,17 @@ export function POSLayout() {
           />
         </div>
       </div>
+
+      {/* Category products popup (card layout) */}
+      {popupCategory && (
+        <CategoryProductsModal
+          categoryName={popupCategory.name}
+          products={getProductsByCategory(popupCategory.id)}
+          currencySymbol={currencySymbol}
+          onProductClick={handleProductClick}
+          onClose={() => setPopupCategoryId(null)}
+        />
+      )}
 
       {/* Checkout Screen */}
       {showCheckout && (

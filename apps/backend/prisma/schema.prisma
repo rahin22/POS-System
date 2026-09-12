@@ -112,10 +112,17 @@ model Order {
   createdBy     User?          @relation(fields: [createdById], references: [id])
   items         OrderItem[]
 
+  // Where the order was placed: "pos" (staff terminal), "kiosk" (self-service), "online"
+  source           String    @default("pos")
+  // Claimed once by whichever device prints the kitchen docket, so it can never print twice
+  kitchenPrintedAt DateTime?
+  kitchenPrintedBy String?
+
   @@index([createdAt(sort: Desc)])
   @@index([status])
   @@index([status, createdAt(sort: Desc)])
   @@index([archived])
+  @@index([kitchenPrintedAt])
 }
 
 model OrderItem {

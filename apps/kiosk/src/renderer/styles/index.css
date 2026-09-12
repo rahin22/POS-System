@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px;
+  color-scheme: light;
+  color: #1b1510;
+  background-color: #fff8ef;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Prices and totals must not jitter as digits change */
+  font-variant-numeric: tabular-nums;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  overscroll-behavior: none;
+  /* Nothing in a kiosk should be selectable or long-press-able */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  cursor: default;
+}
+
+/* The physical panel has no visible pointer; hide the cursor in kiosk use */
+body.hide-cursor,
+body.hide-cursor * {
+  cursor: none !important;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+}
+::-webkit-scrollbar-thumb {
+  background: #eadbc8;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@layer components {
+  /* Every interactive surface clears 44px; primary actions go far beyond it */
+  .touchable {
+    @apply select-none transition-all duration-200 ease-out active:scale-[0.98];
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .btn-primary {
+    @apply touchable flex items-center justify-center gap-4 rounded-kiosk
+           bg-brand-500 px-10 font-extrabold text-ink-900 shadow-card
+           hover:bg-brand-400 active:bg-brand-600
+           disabled:bg-cream-300 disabled:text-ink-400 disabled:shadow-none disabled:active:scale-100;
+    min-height: 104px;
+  }
+
+  .btn-secondary {
+    @apply touchable flex items-center justify-center gap-3 rounded-kiosk
+           border-2 border-cream-400 bg-white px-10 font-bold text-ink-800
+           hover:bg-cream-200 active:bg-cream-300;
+    min-height: 96px;
+  }
+
+  .btn-quiet {
+    @apply touchable flex items-center justify-center gap-3 rounded-full
+           px-7 py-4 font-bold text-ink-600 hover:bg-cream-300;
+  }
+
+  /* Reference aesthetic separates surfaces with shadow, not outlines */
+  .card {
+    @apply rounded-panel bg-white shadow-card;
+  }
+
+  /* Focus ring kept visible for accessibility even though input is touch */
+  .focus-ring:focus-visible {
+    @apply outline-none ring-4 ring-brand-500 ring-offset-2 ring-offset-cream-100;
+  }
+
+  /* Horizontal rails fade at the edge so it is obvious more content exists */
+  .rail-fade {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 92%, transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 92%, transparent 100%);
+  }
+}
+
+/* Respect the OS reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
