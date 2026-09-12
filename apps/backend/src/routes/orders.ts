@@ -420,9 +420,14 @@ router.post('/', async (req: AuthRequest, res) => {
           select: { orderNumber: true },
         });
 
+        // orderNumberStart raises the floor rather than replacing the counter, so it
+        // applies to the first order of the day and is then simply outgrown. Raising
+        // it mid-service therefore cannot hand out a number already used today.
+        const startFloor = Math.max(1, settings?.orderNumberStart ?? 1) - 1;
+
         return tx.order.create({
           data: {
-            orderNumber: (lastOrderToday?.orderNumber || 0) + 1,
+            orderNumber: Math.max(lastOrderToday?.orderNumber || 0, startFloor) + 1,
             type: type.replace('-', '_') as any,
             source: source || 'pos',
             ...(paymentMethod ? { paymentMethod: paymentMethod as any } : {}),

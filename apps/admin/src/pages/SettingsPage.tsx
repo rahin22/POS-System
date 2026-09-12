@@ -11,6 +11,7 @@ interface Settings {
   currency: string;
   currencySymbol: string;
   receiptFooter?: string;
+  orderNumberStart?: number;
 }
 
 export function SettingsPage() {
@@ -22,6 +23,7 @@ export function SettingsPage() {
     vatRate: 10,
     currency: 'AUD',
     currencySymbol: '$',
+    orderNumberStart: 1,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -168,6 +170,39 @@ export function SettingsPage() {
               className="input"
               disabled={!isAdmin}
             />
+          </div>
+        </div>
+
+        <div className="card mb-6">
+          <h2 className="text-lg font-semibold mb-4">Orders</h2>
+
+          <div className="max-w-xs">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Daily starting order number
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={999999}
+              value={settings.orderNumberStart ?? 1}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  // Keep it a valid number while the box is mid-edit or emptied
+                  orderNumberStart: Math.min(
+                    999999,
+                    Math.max(1, parseInt(e.target.value, 10) || 1)
+                  ),
+                })
+              }
+              className="input"
+              disabled={!isAdmin}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              The first order of each day takes this number, then counting continues
+              normally and resets again the next day. Applies to every device — the POS,
+              the terminal and the kiosk all get their number from the server.
+            </p>
           </div>
         </div>
 

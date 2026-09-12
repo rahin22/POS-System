@@ -286,6 +286,7 @@ export declare const settingsSchema: z.ZodObject<{
     currencySymbol: z.ZodString;
     receiptFooter: z.ZodEffects<z.ZodNullable<z.ZodString>, string, string | null>;
     logoUrl: z.ZodEffects<z.ZodUnion<[z.ZodUnion<[z.ZodNullable<z.ZodString>, z.ZodLiteral<"">]>, z.ZodLiteral<null>]>, string | null, string | null>;
+    orderNumberStart: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     email: string;
     shopName: string;
@@ -297,6 +298,7 @@ export declare const settingsSchema: z.ZodObject<{
     currencySymbol: string;
     receiptFooter: string;
     logoUrl: string | null;
+    orderNumberStart?: number | undefined;
 }, {
     email: string | null;
     shopName: string;
@@ -308,6 +310,7 @@ export declare const settingsSchema: z.ZodObject<{
     currencySymbol: string;
     receiptFooter: string | null;
     logoUrl: string | null;
+    orderNumberStart?: number | undefined;
 }>;
 export declare const printReceiptSchema: z.ZodObject<{
     orderId: z.ZodString;

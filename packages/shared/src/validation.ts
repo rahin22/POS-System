@@ -110,6 +110,9 @@ export const settingsSchema = z.object({
   currencySymbol: z.string().max(5),
   receiptFooter: z.string().max(200).nullable().transform(val => val || ''),
   logoUrl: z.string().url().nullable().or(z.literal('')).or(z.literal(null)).transform(val => val || null),
+  // Optional so a client that predates this field can still save settings without
+  // wiping it - an absent key simply leaves the stored value alone.
+  orderNumberStart: z.number().int().min(1).max(999999).optional(),
 });
 
 // ---------- Print Schema ----------

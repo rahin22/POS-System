@@ -161,6 +161,10 @@ model Settings {
   receiptFooter  String?  @default("Thank you for your order!")
   logoUrl        String?
   updatedAt      DateTime @updatedAt
+
+  // First order number of each trading day. Numbering still resets daily; this
+  // only raises the floor, so 100 gives 100, 101, 102 ... every day.
+  orderNumberStart Int @default(1)
 }
 
 model Coupon {
