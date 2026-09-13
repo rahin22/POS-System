@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, Plus } from 'lucide-react';
 import type { Product } from '../types';
 import { displayName } from '../lib/format';
+import { hasChoosableGroups } from '../lib/modifiers';
 
 interface ProductCardProps {
   product: Product;
@@ -26,7 +27,10 @@ export function ProductCard({
   // Menu photos are staff-uploaded URLs; a dead link must not leave an empty block
   const [imageFailed, setImageFailed] = useState(false);
   const image = imageFailed ? undefined : product.imageUrl || product.image;
-  const hasOptions = (product.modifierGroups || []).length > 0;
+  // Same normaliser the sheet uses: reading the raw groups meant a product whose
+  // only group was empty still opened a sheet with no groups and a bare
+  // "Add to order".
+  const hasOptions = hasChoosableGroups(product);
   const soldOut = !product.isAvailable;
 
   const handleCard = () => {

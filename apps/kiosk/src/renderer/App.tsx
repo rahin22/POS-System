@@ -536,6 +536,14 @@ export default function App() {
 
       {sheetProduct && (
         <ItemSheet
+          /*
+           * Keyed so the sheet always remounts. Its quantity and selections are
+           * seeded from editingLine in useState initialisers, which run once per
+           * mount - without a key, any path that swapped the product while the
+           * sheet stayed mounted would carry the previous item's choices onto a
+           * different product. Cheap guarantee rather than a proof about routes.
+           */
+          key={editingLine ? `line-${editingLine.lineId}` : `product-${sheetProduct.id}`}
           product={sheetProduct}
           currencySymbol={menu.shop.currencySymbol}
           editingLine={editingLine}

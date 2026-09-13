@@ -1,6 +1,7 @@
 import { ChevronLeft, CreditCard, Minus, Pencil, Plus, ShoppingBag, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { CartLine, OrderType, Product } from '../types';
 import { displayName, money } from '../lib/format';
+import { hasChoosableGroups } from '../lib/modifiers';
 
 interface CartScreenProps {
   lines: CartLine[];
@@ -142,7 +143,7 @@ export function CartScreen({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {(line.product.modifierGroups?.length || 0) > 0 && (
+                  {hasChoosableGroups(line.product) && (
                     <button
                       type="button"
                       onClick={() => onEdit(line)}
@@ -172,7 +173,7 @@ export function CartScreen({
             <h2 className="text-kiosk-base font-extrabold text-ink-900">Anything else?</h2>
             <div className="mt-6 grid grid-cols-3 gap-6">
               {suggestions.map((product) => {
-                const hasOptions = (product.modifierGroups?.length || 0) > 0;
+                const hasOptions = hasChoosableGroups(product);
                 return (
                   <button
                     key={product.id}
