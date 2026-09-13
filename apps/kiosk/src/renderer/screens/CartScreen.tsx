@@ -2,6 +2,7 @@ import { ChevronLeft, CreditCard, Minus, Pencil, Plus, ShoppingBag, Trash2, Uten
 import type { CartLine, OrderType, Product } from '../types';
 import { displayName, money } from '../lib/format';
 import { hasChoosableGroups } from '../lib/modifiers';
+import { MAX_LINE_QUANTITY } from '../lib/limits';
 
 interface CartScreenProps {
   lines: CartLine[];
@@ -86,6 +87,26 @@ export function CartScreen({
           </span>
         )}
 
+        {/*
+          Reachable by removing the last line from here: the order bar that opens
+          this screen only appears once something is in the basket, but nothing
+          stops the customer emptying it once they arrive. Without this they were
+          left staring at a blank panel with a dead Pay button.
+        */}
+        {lines.length === 0 && (
+          <div className="flex flex-col items-center gap-7 py-24 text-center">
+            <ShoppingBag className="h-24 w-24 text-ink-400" aria-hidden="true" />
+            <p className="text-kiosk-lg font-extrabold text-ink-900">Your order is empty</p>
+            <p className="max-w-[720px] text-kiosk-base text-ink-700">
+              Add something from the menu to get started.
+            </p>
+            <button type="button" onClick={onAddMore} className="btn-primary mt-2 px-14 text-kiosk-base">
+              <Plus className="h-9 w-9" strokeWidth={3} aria-hidden="true" />
+              Back to the menu
+            </button>
+          </div>
+        )}
+
         <ul className="space-y-6">
           {lines.map((line) => (
             <li key={line.lineId} className="card animate-fade-up p-7">
@@ -100,14 +121,21 @@ export function CartScreen({
                       {line.modifiers.map((modifier) => (
                         <li key={modifier.id} className="text-kiosk-xs text-ink-700">
                           + {modifier.name}
-                          {modifier.price > 0 && ` (${money(modifier.price, currencySymbol)})`}
+                          {/* !== 0, not > 0: a negative modifier price is charged
+                              either way, so hiding it let the line disagree with
+                              the total. Same fix as ItemSheet. */}
+                          {modifier.price !== 0 &&
+                            ` (${modifier.price > 0 ? '' : '−'}${money(
+                              Math.abs(modifier.price),
+                              currencySymbol
+                            )})`}
                         </li>
                       ))}
                     </ul>
                   )}
 
                   {line.quantity > 1 && (
-                    <p className="mt-3 text-kiosk-xs text-ink-500">
+                    <p className="mt-3 text-kiosk-xs text-ink-600">
                       {money(line.unitPrice, currencySymbol)} each
                     </p>
                   )}
@@ -132,11 +160,17 @@ export function CartScreen({
                   <span className="w-14 text-center text-kiosk-base font-extrabold text-ink-900">
                     {line.quantity}
                   </span>
+                  {/* Capped to the same ceiling the item sheet enforces: this
+                      button had none, so a line could be pushed past a limit the
+                      sheet had just applied to the same item. */}
                   <button
                     type="button"
-                    onClick={() => onSetQuantity(line.lineId, line.quantity + 1)}
+                    onClick={() =>
+                      onSetQuantity(line.lineId, Math.min(MAX_LINE_QUANTITY, line.quantity + 1))
+                    }
+                    disabled={line.quantity >= MAX_LINE_QUANTITY}
                     aria-label={`Increase quantity of ${line.product.name}`}
-                    className="touchable focus-ring flex h-[72px] w-[72px] items-center justify-center rounded-xl text-ink-800 hover:bg-cream-200"
+                    className="touchable focus-ring flex h-[72px] w-[72px] items-center justify-center rounded-xl text-ink-800 hover:bg-cream-200 disabled:opacity-30"
                   >
                     <Plus className="h-9 w-9" strokeWidth={3} aria-hidden="true" />
                   </button>
@@ -168,7 +202,9 @@ export function CartScreen({
           ))}
         </ul>
 
-        {suggestions.length > 0 && (
+        {/* Not on an empty cart: "Your order is empty" and "Anything else?" on the
+            same screen is the kind of contradiction customers read twice. */}
+        {lines.length > 0 && suggestions.length > 0 && (
           <section className="mt-10">
             <h2 className="text-kiosk-base font-extrabold text-ink-900">Anything else?</h2>
             <div className="mt-6 grid grid-cols-3 gap-6">
@@ -199,30 +235,36 @@ export function CartScreen({
           </section>
         )}
 
-        <button type="button" onClick={onAddMore} className="btn-secondary mt-8 w-full text-kiosk-base">
-          <Plus className="h-9 w-9" strokeWidth={3} aria-hidden="true" />
-          Add more items
-        </button>
+        {lines.length > 0 && (
+          <button type="button" onClick={onAddMore} className="btn-secondary mt-8 w-full text-kiosk-base">
+            <Plus className="h-9 w-9" strokeWidth={3} aria-hidden="true" />
+            Add more items
+          </button>
+        )}
       </div>
 
-      <footer className="shrink-0 bg-cream-50 px-12 py-7 shadow-bar">
-        {/* Menu prices are GST-inclusive, so GST is a component, not an addition.
-            The amount itself lives on the Pay button rather than being stated twice. */}
-        <p className="text-center text-kiosk-xs text-ink-500">
-          Total {money(total, currencySymbol)} &middot; includes GST {money(tax, currencySymbol)}
-        </p>
+      {/* The whole footer goes with the items. Leaving it up on an empty cart put a
+          120px grey "Pay $0.00" bar — the largest element on the screen — directly
+          under the "Your order is empty" panel that exists to replace it. */}
+      {lines.length > 0 && (
+        <footer className="shrink-0 bg-cream-50 px-12 py-7 shadow-bar">
+          {/* Menu prices are GST-inclusive, so GST is a component, not an addition.
+              The amount itself lives on the Pay button rather than being stated twice. */}
+          <p className="text-center text-kiosk-xs text-ink-600">
+            Total {money(total, currencySymbol)} &middot; includes GST {money(tax, currencySymbol)}
+          </p>
 
-        <button
-          type="button"
-          onClick={onPay}
-          disabled={lines.length === 0}
-          className="btn-primary mt-6 w-full justify-center gap-5 text-kiosk-lg"
-          style={{ minHeight: '120px' }}
-        >
-          <CreditCard className="h-11 w-11" aria-hidden="true" />
-          Pay {money(total, currencySymbol)}
-        </button>
-      </footer>
+          <button
+            type="button"
+            onClick={onPay}
+            className="btn-primary mt-6 w-full justify-center gap-5 text-kiosk-lg"
+            style={{ minHeight: '120px' }}
+          >
+            <CreditCard className="h-11 w-11" aria-hidden="true" />
+            Pay {money(total, currencySymbol)}
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

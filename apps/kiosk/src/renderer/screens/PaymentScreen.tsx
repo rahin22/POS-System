@@ -1,13 +1,21 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronLeft, CreditCard, Loader2, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronLeft, CreditCard, Loader2, RotateCcw, WifiOff } from 'lucide-react';
 import { money } from '../lib/format';
 
 export type PaymentStatus =
+  /** Confirming the backend is answering BEFORE the terminal is armed */
+  | 'checking'
   | 'waiting'
   | 'processing'
   | 'finalising'
   /** Card refused / cancelled / offline: nothing was charged, retrying is safe */
   | 'error'
+  /**
+   * The backend is not answering, so the terminal was never armed. Nothing was
+   * charged and retrying is pointless - this must route to the counter, never
+   * back into payment.
+   */
+  | 'unavailable'
   /** Card WAS charged but the order or ticket failed: retrying would double-charge */
   | 'paid-unfinished';
 
@@ -23,6 +31,8 @@ interface PaymentScreenProps {
   onBackToOrder: () => void;
   onHelp: () => void;
   onDismissPaidUnfinished: () => void;
+  /** Ends the order and returns to the attract screen */
+  onGiveUp: () => void;
 }
 
 export function PaymentScreen({
@@ -36,11 +46,37 @@ export function PaymentScreen({
   onBackToOrder,
   onHelp,
   onDismissPaidUnfinished,
+  onGiveUp,
 }: PaymentScreenProps) {
   const [slowWarning, setSlowWarning] = useState(false);
 
+  /** Progress of the staff long-press that clears the paid-unfinished screen */
+  const [dismissProgress, setDismissProgress] = useState(0);
+  const dismissTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const cancelDismissHold = () => {
+    if (dismissTimer.current) clearInterval(dismissTimer.current);
+    dismissTimer.current = null;
+    setDismissProgress(0);
+  };
+
+  const startDismissHold = () => {
+    if (dismissTimer.current) return;
+    const startedAt = Date.now();
+    dismissTimer.current = setInterval(() => {
+      const progress = Math.min(100, ((Date.now() - startedAt) / 3000) * 100);
+      setDismissProgress(progress);
+      if (progress >= 100) {
+        cancelDismissHold();
+        onDismissPaidUnfinished();
+      }
+    }, 50);
+  };
+
+  useEffect(() => () => cancelDismissHold(), []);
+
   useEffect(() => {
-    if (status !== 'waiting' && status !== 'processing') {
+    if (status !== 'waiting' && status !== 'processing' && status !== 'checking') {
       setSlowWarning(false);
       return;
     }
@@ -65,7 +101,7 @@ export function PaymentScreen({
         </p>
 
         <div className="card w-full max-w-[820px] p-8">
-          <p className="text-kiosk-xs font-semibold uppercase tracking-[0.2em] text-ink-500">
+          <p className="text-kiosk-xs font-semibold uppercase tracking-[0.2em] text-ink-600">
             Payment reference
           </p>
           <p className="mt-2 text-kiosk-xl font-extrabold text-ink-900">{reference || 'Not available'}</p>
@@ -78,12 +114,68 @@ export function PaymentScreen({
           <button type="button" onClick={onHelp} className="btn-primary w-full text-kiosk-base">
             Call a staff member
           </button>
+
+          {/*
+            Long-press, not a tap.
+            This is the only screen where a stray tap costs a customer money they
+            cannot prove they spent: the order was never created, so there is
+            nothing in the POS to look up, and dismissing clears the auth
+            reference. A "Staff:" prefix is a label, not access control — and the
+            person standing here is frustrated and looking for a button. Holding
+            for 3s is the same gesture that already gates staff access from the
+            attract screen.
+          */}
           <button
             type="button"
-            onClick={onDismissPaidUnfinished}
-            className="btn-secondary w-full text-kiosk-base"
+            onPointerDown={startDismissHold}
+            onPointerUp={cancelDismissHold}
+            onPointerLeave={cancelDismissHold}
+            onPointerCancel={cancelDismissHold}
+            className="btn-secondary relative w-full overflow-hidden text-kiosk-xs"
           >
-            Staff: finish and reset
+            <span
+              className="absolute inset-y-0 left-0 bg-danger/20 transition-[width] duration-100 ease-linear"
+              style={{ width: `${dismissProgress}%` }}
+              aria-hidden="true"
+            />
+            <span className="relative">
+              Staff only: hold for 3 seconds to clear this screen
+            </span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * The terminal was never armed, so nothing was charged and there is nothing to
+   * retry — the backend is down, and a retry button here would just arm the
+   * terminal against a system that cannot record the result. The only honest
+   * routes are the counter and a staff member.
+   */
+  if (status === 'unavailable') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-10 bg-cream-100 px-12 text-center">
+        <span className="flex h-44 w-44 items-center justify-center rounded-full bg-danger/10">
+          <WifiOff className="h-24 w-24 text-danger" aria-hidden="true" />
+        </span>
+
+        <div>
+          <h1 className="text-kiosk-2xl font-extrabold text-ink-900">
+            We can&apos;t take your order here
+          </h1>
+          <p className="mx-auto mt-5 max-w-[820px] text-kiosk-lg text-ink-700">
+            The kiosk has lost contact with the kitchen, so we stopped before taking any
+            payment. <strong>Nothing has been charged.</strong> Please order at the counter.
+          </p>
+        </div>
+
+        <div className="w-full max-w-[820px] space-y-5">
+          <button type="button" onClick={onGiveUp} className="btn-primary w-full text-kiosk-lg">
+            OK, I&apos;ll order at the counter
+          </button>
+          <button type="button" onClick={onHelp} className="btn-secondary w-full text-kiosk-base">
+            Call a staff member
           </button>
         </div>
       </div>
@@ -123,21 +215,34 @@ export function PaymentScreen({
     );
   }
 
-  const isBusy = status === 'processing' || status === 'finalising';
+  // 'checking' shows the spinner too: the terminal is NOT armed yet, so telling
+  // the customer to tap their card would be a lie for as long as it lasts.
+  const isBusy = status === 'processing' || status === 'finalising' || status === 'checking';
 
   return (
     <div className="flex h-full flex-col bg-cream-100">
       <div className="mx-10 mt-10 rounded-panel bg-brand-500 px-12 py-10 text-center">
-        <p className="text-kiosk-base font-bold uppercase tracking-[0.25em] text-white/90">
+        {/* ink-900 on brand-500, not white: white on this orange is ~1.8:1 and the
+            hero figure ~2.0:1, on the amount about to be charged. */}
+        <p className="text-kiosk-base font-bold uppercase tracking-[0.25em] text-ink-900/80">
           Amount due
         </p>
-        <p className="mt-2 text-kiosk-hero font-extrabold text-white">
+        <p className="mt-2 text-kiosk-hero font-extrabold text-ink-900">
           {money(amount, currencySymbol)}
         </p>
       </div>
 
       <div className="flex flex-1 flex-col items-center px-12 pb-10 pt-16 text-center">
         <div aria-live="polite" className="max-w-[860px]">
+          {status === 'checking' && (
+            <>
+              <h1 className="text-kiosk-2xl font-extrabold text-ink-900">Just a moment</h1>
+              <p className="mt-6 text-kiosk-lg text-ink-700">
+                Checking we can send your order to the kitchen before you pay.
+              </p>
+            </>
+          )}
+
           {status === 'waiting' && (
             <>
               <h1 className="text-kiosk-2xl font-extrabold text-ink-900">
@@ -232,6 +337,12 @@ export function PaymentScreen({
               Help
             </button>
           </div>
+        ) : status === 'checking' ? (
+          // Nothing is paid and the terminal is not armed; if the probe fails the
+          // next screen says we cannot take the order at all.
+          <p className="text-center text-kiosk-base font-semibold text-ink-600">
+            One moment &mdash; you haven&apos;t been charged yet.
+          </p>
         ) : (
           <p className="text-center text-kiosk-base font-semibold text-ink-600">
             Almost done&hellip;

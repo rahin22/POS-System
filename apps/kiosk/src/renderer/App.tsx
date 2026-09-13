@@ -16,7 +16,7 @@ import { Toast } from './components/Toast';
 import { useMenu } from './hooks/useMenu';
 import { useCart } from './hooks/useCart';
 import { useIdleTimer } from './hooks/useIdleTimer';
-import { createPaidOrder, setApiBaseUrl } from './lib/api';
+import { createPaidOrder, isBackendReachable, setApiBaseUrl } from './lib/api';
 import { findComboOffers } from './lib/combos';
 import { displayName } from './lib/format';
 import type { CartLine, KioskSettings, Modifier, OrderType, Product } from './types';
@@ -137,6 +137,7 @@ export default function App() {
     // The next customer gets their own combo offer
     setShowCombos(false);
     setComboPrompted(false);
+    setPendingPayment(false);
     setOrderTypeReturn(null);
     // The next customer starts at the top of the menu, not wherever the last one left it
     menuScrollTop.current = 0;
@@ -260,6 +261,18 @@ export default function App() {
     void beginPayment();
   };
 
+  /**
+   * Payment cannot be started from the same handler that upgrades the cart.
+   *
+   * beginPayment reads cart.total and cart.lines out of the render closure, so
+   * calling it straight after cart.upgradeLine() read the PRE-upgrade cart: the
+   * customer tapped "Add to my order +$4", confirmed it, and was then charged the
+   * old total for the old items while the upgrade they had just agreed to was
+   * silently dropped. Setting a flag instead defers the call to an effect, which
+   * runs after the upgrade has been committed and re-rendered.
+   */
+  const [pendingPayment, setPendingPayment] = useState(false);
+
   const handleComboConfirm = (lineIds: string[]) => {
     for (const lineId of lineIds) {
       const offer = comboOffers.find((candidate) => candidate.line.lineId === lineId);
@@ -267,13 +280,13 @@ export default function App() {
     }
     setComboPrompted(true);
     setShowCombos(false);
-    void beginPayment();
+    setPendingPayment(true);
   };
 
   const handleComboSkip = () => {
     setComboPrompted(true);
     setShowCombos(false);
-    void beginPayment();
+    setPendingPayment(true);
   };
 
   const beginPayment = async () => {
@@ -282,7 +295,7 @@ export default function App() {
 
     setPaymentError(null);
     setPaymentReference(undefined);
-    setPaymentStatus('waiting');
+    setPaymentStatus('checking');
     setScreen('payment');
 
     let charged = false;
@@ -292,6 +305,28 @@ export default function App() {
       if (!settings?.eftposEnabled) {
         throw new Error('Card payments are turned off on this kiosk.');
       }
+
+      /*
+       * Gate the TERMINAL, not the entrance.
+       *
+       * kioskStatus stops a customer starting an order while the backend is down,
+       * but a customer already mid-order when it dies still arrives here. Because
+       * the order is only created after the card is approved, arming the terminal
+       * against an unreachable backend means money taken and no order - which is
+       * the single most expensive thing this app can do.
+       *
+       * Checked as late as possible, immediately before purchase(), so the answer
+       * is as fresh as it can be. Failure routes to 'unavailable', which offers
+       * the counter and a staff member and deliberately offers NO retry: nothing
+       * was charged, and retrying only re-arms the terminal against a system that
+       * still cannot record the result.
+       */
+      if (!(await isBackendReachable())) {
+        setPaymentStatus('unavailable');
+        return;
+      }
+
+      setPaymentStatus('waiting');
 
       const amountCents = Math.round(cart.total * 100);
       const result = await window.kioskAPI.eftpos.purchase(amountCents);
@@ -382,9 +417,27 @@ export default function App() {
     }
   };
 
-  // A failed payment left on screen would block the next customer
+  /**
+   * Runs on the render AFTER the combo upgrade has been applied, so beginPayment
+   * closes over the updated cart. cart.lines is in the dependency list so the
+   * effect cannot fire on a render where the upgrade has not landed yet.
+   */
   useEffect(() => {
-    if (screen !== 'payment' || paymentStatus !== 'error') return;
+    if (!pendingPayment) return;
+    setPendingPayment(false);
+    void beginPayment();
+    // beginPayment is recreated every render; depending on it would re-run this
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPayment, cart.lines]);
+
+  /*
+   * A dead-ended payment left on screen would block the next customer.
+   * 'paid-unfinished' is deliberately NOT here: money was taken, and that screen
+   * is the customer's only proof, so it stays until a person dismisses it.
+   */
+  useEffect(() => {
+    if (screen !== 'payment') return;
+    if (paymentStatus !== 'error' && paymentStatus !== 'unavailable') return;
     const timer = setTimeout(resetToAttract, 60 * 1000);
     return () => clearTimeout(timer);
   }, [screen, paymentStatus, resetToAttract]);
@@ -513,6 +566,7 @@ export default function App() {
           onBackToOrder={() => setScreen('cart')}
           onHelp={() => setShowHelp(true)}
           onDismissPaidUnfinished={resetToAttract}
+          onGiveUp={resetToAttract}
         />
       )}
 
@@ -559,7 +613,11 @@ export default function App() {
       {toast && <Toast message={toast} onUndo={undoLine ? handleUndoRemove : undefined} />}
 
       {idle.warning && idleEnabled && (
-        <IdlePrompt onContinue={idle.keepAlive} onFinish={resetToAttract} />
+        <IdlePrompt
+          secondsLeft={idle.secondsLeft}
+          onContinue={idle.keepAlive}
+          onFinish={resetToAttract}
+        />
       )}
 
       {confirmCancel && (
@@ -573,7 +631,12 @@ export default function App() {
         />
       )}
 
-      {showHelp && <HelpDialog onClose={() => setShowHelp(false)} />}
+      {showHelp && (
+        <HelpDialog
+          context={screen === 'payment' ? 'payment' : 'ordering'}
+          onClose={() => setShowHelp(false)}
+        />
+      )}
 
       {showPin && (
         <PinDialog

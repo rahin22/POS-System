@@ -31,6 +31,41 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
+ * Is the backend answering RIGHT NOW?
+ *
+ * Called immediately before the card terminal is armed. The attract screen's
+ * status gate only closes the entrance: a customer already mid-order when the
+ * backend dies still reaches Pay, and because the order is created only AFTER the
+ * card is approved, the failure lands as money taken with no order.
+ *
+ * This does not prove a POST will succeed - only a POST proves that - but it
+ * catches the dominant failure by far, which is the backend or the network being
+ * down, and it costs one cheap GET on a path the customer is already waiting on.
+ *
+ * Deliberately short-timed: a customer standing at a terminal will not wait, and
+ * a backend too slow to answer this is too slow to create an order before the
+ * terminal times out anyway.
+ */
+export async function isBackendReachable(timeoutMs = 4000): Promise<boolean> {
+  if ((window as any).__KIOSK_PREVIEW__) return true;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/settings`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Fetches everything, including unavailable items, so the kiosk can show a
  * "Sold out" card rather than silently dropping a product a customer came for.
  */

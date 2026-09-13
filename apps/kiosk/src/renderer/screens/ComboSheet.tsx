@@ -21,6 +21,8 @@ interface ComboSheetProps {
  */
 export function ComboSheet({ offers, currencySymbol, onConfirm, onSkip }: ComboSheetProps) {
   const [chosen, setChosen] = useState<string[]>([]);
+  // Staff-uploaded URLs, same guard as every other image surface in the app
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   const toggle = (lineId: string) => {
     setChosen((prev) =>
@@ -74,11 +76,14 @@ export function ComboSheet({ offers, currencySymbol, onConfirm, onSkip }: ComboS
                       )}
                     </span>
 
-                    {image && (
+                    {image && !failedImages[offer.combo.id] && (
                       <img
                         src={image}
                         alt=""
-                        className="h-32 w-32 shrink-0 rounded-2xl object-cover"
+                        onError={() =>
+                          setFailedImages((prev) => ({ ...prev, [offer.combo.id]: true }))
+                        }
+                        className="h-32 w-32 shrink-0 rounded-2xl bg-cream-200 object-cover"
                       />
                     )}
 

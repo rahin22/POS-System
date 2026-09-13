@@ -9,8 +9,15 @@ interface ToastProps {
 /** Confirms an action without stealing the customer's place in the menu */
 export function Toast({ message, onUndo }: ToastProps) {
   return (
+    /*
+     * z-[55]: above the sheets (z-40 CategorySheet, z-50 ItemSheet/ComboSheet) and
+     * below the interrupts (z-60 idle prompt, z-70 confirm). It previously sat at
+     * z-40, level with CategorySheet, and only rendered on top because App happens
+     * to mount it later in the DOM — and it was genuinely hidden behind anything at
+     * z-50. A confirmation the customer cannot see is the same as no confirmation.
+     */
     <div
-      className={`fixed inset-x-0 z-40 flex justify-center px-10 ${
+      className={`fixed inset-x-0 z-[55] flex justify-center px-10 ${
         // Sits clear of the cart's total + Pay button when it carries an action
         onUndo ? 'bottom-[300px]' : 'bottom-[190px] pointer-events-none'
       }`}

@@ -8,19 +8,26 @@ interface ConfirmationScreenProps {
   onDone: () => void;
 }
 
+/** Long enough that no real customer needs longer; short enough to free the kiosk */
+const NO_TICKET_SECONDS = 180;
+
 export function ConfirmationScreen({
   orderNumber,
   printed,
   autoCloseSeconds = 25,
   onDone,
 }: ConfirmationScreenProps) {
-  const [secondsLeft, setSecondsLeft] = useState(autoCloseSeconds);
+  const [secondsLeft, setSecondsLeft] = useState(
+    printed ? autoCloseSeconds : NO_TICKET_SECONDS
+  );
 
+  /**
+   * Without a ticket this screen is the customer's readable record, so it holds far
+   * longer — but not forever. Unlike the paid-unfinished screen, the order here WAS
+   * created, so the number is recoverable from the POS; letting one printer jam take
+   * the kiosk out of service for the rest of the night is the worse failure.
+   */
   useEffect(() => {
-    // Without a printed ticket this screen is the customer's only record,
-    // so it must stay up until a person dismisses it.
-    if (!printed) return;
-
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
@@ -54,6 +61,10 @@ export function ConfirmationScreen({
         <button type="button" onClick={onDone} className="btn-primary w-full max-w-[820px] text-kiosk-lg">
           Done
         </button>
+
+        <p className="text-kiosk-xs text-ink-600" aria-live="polite">
+          This screen clears in {secondsLeft}s &middot; staff can look up order {orderNumber}
+        </p>
       </div>
     );
   }
@@ -61,14 +72,15 @@ export function ConfirmationScreen({
   return (
     <div className="flex h-full flex-col bg-cream-100">
       <div className="mx-10 mt-10 flex flex-col items-center rounded-panel bg-brand-500 px-12 pb-12 pt-12 text-center">
-        <span className="flex h-28 w-28 items-center justify-center rounded-full bg-white/25">
-          <CheckCircle2 className="h-16 w-16 text-white" aria-hidden="true" />
+        {/* ink-900 on brand-500: white on this orange measures ~2:1 */}
+        <span className="flex h-28 w-28 items-center justify-center rounded-full bg-ink-900/15">
+          <CheckCircle2 className="h-16 w-16 text-ink-900" aria-hidden="true" />
         </span>
-        <h1 className="mt-6 text-kiosk-2xl font-extrabold text-white">Order confirmed</h1>
+        <h1 className="mt-6 text-kiosk-2xl font-extrabold text-ink-900">Order confirmed</h1>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center px-12 text-center">
-        <p className="text-kiosk-base font-bold uppercase tracking-[0.3em] text-ink-500">
+        <p className="text-kiosk-base font-bold uppercase tracking-[0.3em] text-ink-600">
           Your order number
         </p>
         <p className="animate-scale-in text-[16rem] font-extrabold leading-none text-brand-800">
@@ -94,7 +106,7 @@ export function ConfirmationScreen({
           Done
         </button>
 
-        <p className="text-kiosk-xs text-ink-500" aria-live="polite">
+        <p className="text-kiosk-xs text-ink-600" aria-live="polite">
           This screen clears in {secondsLeft}s
         </p>
       </div>
