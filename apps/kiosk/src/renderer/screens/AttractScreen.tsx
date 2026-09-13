@@ -141,7 +141,7 @@ export function AttractScreen({
           </div>
         ) : status === 'loading' ? (
           <div className="flex w-full flex-col items-center gap-6">
-            <Loader2 className="h-24 w-24 animate-spin text-brand-600" aria-hidden="true" />
+            <Loader2 className="h-24 w-24 animate-spin text-brand-700" aria-hidden="true" />
             <p className="text-kiosk-base font-semibold text-ink-700">Getting today&apos;s menu…</p>
           </div>
         ) : featured ? (

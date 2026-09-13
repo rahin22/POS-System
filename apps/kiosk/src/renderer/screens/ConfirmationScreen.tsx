@@ -93,7 +93,7 @@ export function ConfirmationScreen({
 
       <div className="flex flex-col items-center gap-8 px-12 pb-14">
         <div className="card flex w-full max-w-[860px] items-center gap-7 p-8 text-left">
-          <ArrowDown className="h-16 w-16 shrink-0 animate-bounce text-brand-600" aria-hidden="true" />
+          <ArrowDown className="h-16 w-16 shrink-0 animate-bounce text-brand-700" aria-hidden="true" />
           <div>
             <p className="text-kiosk-base font-extrabold text-ink-900">Take your ticket below</p>
             <p className="mt-1 text-kiosk-xs text-ink-600">

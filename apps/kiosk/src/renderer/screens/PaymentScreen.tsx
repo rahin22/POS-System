@@ -296,12 +296,12 @@ export function PaymentScreen({
         <div className="mt-14 flex w-full max-w-[900px] items-center justify-end gap-8">
           {isBusy ? (
             <span className="flex h-56 w-56 items-center justify-center rounded-full bg-white shadow-card">
-              <Loader2 className="h-28 w-28 animate-spin text-brand-600" aria-hidden="true" />
+              <Loader2 className="h-28 w-28 animate-spin text-brand-700" aria-hidden="true" />
             </span>
           ) : (
             <>
               <ArrowRight
-                className="h-28 w-28 animate-nudge-right text-brand-600"
+                className="h-28 w-28 animate-nudge-right text-brand-700"
                 strokeWidth={2.5}
                 aria-hidden="true"
               />

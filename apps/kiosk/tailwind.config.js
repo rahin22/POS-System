@@ -11,26 +11,42 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Al Taher brand amber (anchored on the logo mark)
+        /*
+         * Shared with the terminal app (its `primary` scale, value for value), so
+         * the kiosk and the counter read as one system rather than as an amber
+         * cousin of an orange product.
+         *
+         * Contrast notes, measured, because this scale is darker than the amber it
+         * replaced and that changes which steps are safe for text:
+         *   - on brand-500, ink-900 is 6.34:1 and white is 2.85:1. Body copy on an
+         *     orange panel stays ink-900; white fails even the large-text bar.
+         *   - on a near-white surface, brand-500 is 2.76:1 and brand-600 is 3.53:1.
+         *     Orange TEXT therefore starts at brand-700 (5.15:1). 500 and 600 are
+         *     fill colours only.
+         */
         brand: {
-          50: '#FFF6E6',
-          100: '#FFE9C2',
-          200: '#FFD68C',
-          300: '#FBC15A',
-          400: '#F8B133',
-          500: '#F5A623',
-          600: '#E2820D',
-          700: '#C2660A',
-          800: '#954E0A',
-          900: '#6B3E0C',
+          50: '#fef7ee',
+          100: '#fdedd6',
+          200: '#f9d7ad',
+          300: '#f5ba78',
+          400: '#f09341',
+          500: '#ec7a1c',
+          600: '#dd6012',
+          700: '#b74811',
+          800: '#923a16',
+          900: '#763215',
         },
-        // Warm cream surfaces (light, food-forward)
+        /*
+         * Near-white with a trace of warmth. The old cream was amber-tinted to sit
+         * under an amber brand; against this orange it read as a competing colour
+         * rather than as paper. Keeping a little warmth stops it going clinical.
+         */
         cream: {
-          50: '#FFFCF7',
-          100: '#FFF8EF',
-          200: '#FDF1E3',
-          300: '#F6E6D3',
-          400: '#EADBC8',
+          50: '#FFFFFF',
+          100: '#FCFBF9',
+          200: '#F6F4F1',
+          300: '#EDE9E4',
+          400: '#DFD9D2',
         },
         // Text and dark accents
         ink: {

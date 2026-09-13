@@ -7,7 +7,8 @@
   font-size: 16px;
   color-scheme: light;
   color: #1b1510;
-  background-color: #fff8ef;
+  /* Matches cream-100 */
+  background-color: #fcfbf9;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* Prices and totals must not jitter as digits change */
@@ -47,7 +48,8 @@ body.hide-cursor * {
   width: 12px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #eadbc8;
+  /* cream-400 */
+  background: #dfd9d2;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-track {

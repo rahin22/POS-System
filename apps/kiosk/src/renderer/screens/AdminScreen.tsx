@@ -92,7 +92,7 @@ export function AdminScreen({ onClose, onSettingsSaved }: AdminScreenProps) {
   }) => (
     <section className="card p-8">
       <h2 className="mb-6 flex items-center gap-3 text-2xl font-bold text-ink-900">
-        <Icon className="h-7 w-7 text-brand-600" aria-hidden="true" />
+        <Icon className="h-7 w-7 text-brand-700" aria-hidden="true" />
         {title}
       </h2>
       <div className="space-y-5">{children}</div>

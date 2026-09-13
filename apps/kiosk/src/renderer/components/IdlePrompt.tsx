@@ -22,7 +22,7 @@ export function IdlePrompt({ onContinue, onFinish, secondsLeft }: IdlePromptProp
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink-900/70 p-12">
       <div className="animate-scale-in card w-full max-w-[820px] p-14 text-center">
         <span className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-brand-100">
-          <Clock className="h-14 w-14 text-brand-600" aria-hidden="true" />
+          <Clock className="h-14 w-14 text-brand-700" aria-hidden="true" />
         </span>
 
         <h2 className="mt-8 text-kiosk-2xl font-extrabold text-ink-900">Still ordering?</h2>

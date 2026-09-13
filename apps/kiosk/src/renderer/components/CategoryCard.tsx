@@ -34,7 +34,7 @@ export function CategoryCard({ name, productCount, imageUrl, index, onSelect }: 
         ) : (
           // No usable photo: a brand tile keeps the grid's rhythm
           <div className="flex h-full w-full items-center justify-center">
-            <UtensilsCrossed className="h-20 w-20 text-brand-600" aria-hidden="true" />
+            <UtensilsCrossed className="h-20 w-20 text-brand-700" aria-hidden="true" />
           </div>
         )}
       </div>
