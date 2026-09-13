@@ -54,6 +54,7 @@ export default function App() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('waiting');
   const [paymentError, setPaymentError] = useState<{ title: string; message: string } | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | undefined>();
+  const [paymentChargedAt, setPaymentChargedAt] = useState<Date | undefined>();
   const [confirmation, setConfirmation] = useState<{ orderNumber: number; printed: boolean } | null>(
     null
   );
@@ -131,6 +132,7 @@ export default function App() {
     setConfirmation(null);
     setPaymentError(null);
     setPaymentReference(undefined);
+    setPaymentChargedAt(undefined);
     setPaymentStatus('waiting');
     setConfirmCancel(false);
     setShowHelp(false);
@@ -359,6 +361,9 @@ export default function App() {
       charged = true;
       authReference = result.authId || result.terminalRef || result.transactionId;
       setPaymentReference(authReference);
+      // Recorded even when the terminal gives us no reference: the time is what
+      // makes an unreferenced charge findable in the PAX transaction report.
+      setPaymentChargedAt(new Date());
       setPaymentStatus('finalising');
 
       const order = await createPaidOrder({ type: orderType, lines: cart.lines });
@@ -562,6 +567,7 @@ export default function App() {
           errorTitle={paymentError?.title}
           errorMessage={paymentError?.message}
           reference={paymentReference}
+          chargedAt={paymentChargedAt}
           onRetry={beginPayment}
           onBackToOrder={() => setScreen('cart')}
           onHelp={() => setShowHelp(true)}
@@ -616,7 +622,18 @@ export default function App() {
         <IdlePrompt
           secondsLeft={idle.secondsLeft}
           onContinue={idle.keepAlive}
-          onFinish={resetToAttract}
+          onFinish={() => {
+            /*
+             * Through the same confirmation every other discard uses. This button
+             * sits just under a full-width primary, on a dialog that appeared
+             * unprompted while the customer was deciding, and the instinct on
+             * seeing an unexpected dialog is to tap something to make it go away.
+             * keepAlive first so the countdown does not clear the order out from
+             * under the confirmation.
+             */
+            idle.keepAlive();
+            requestCancel();
+          }}
         />
       )}
 
@@ -633,7 +650,20 @@ export default function App() {
 
       {showHelp && (
         <HelpDialog
-          context={screen === 'payment' ? 'payment' : 'ordering'}
+          /*
+           * Split on whether money has been taken, not on which screen we are on.
+           * A declined card is on the payment screen but nothing was charged and
+           * the cart is intact, so "your order is safe" and "back to my order"
+           * are both TRUE there — the useful advice is try another card. Only a
+           * charge makes them false.
+           */
+          context={
+            paymentStatus === 'paid-unfinished' || paymentStatus === 'finalising'
+              ? 'charged'
+              : screen === 'payment' && paymentStatus === 'unavailable'
+                ? 'unavailable'
+                : 'ordering'
+          }
           onClose={() => setShowHelp(false)}
         />
       )}

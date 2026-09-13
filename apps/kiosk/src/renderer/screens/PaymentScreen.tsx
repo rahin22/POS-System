@@ -27,6 +27,8 @@ interface PaymentScreenProps {
   errorMessage?: string;
   /** Terminal auth reference, shown to staff when a paid order needs rescuing */
   reference?: string;
+  /** When the card was approved, so a missing reference is still reconcilable */
+  chargedAt?: Date;
   onRetry: () => void;
   onBackToOrder: () => void;
   onHelp: () => void;
@@ -42,6 +44,7 @@ export function PaymentScreen({
   errorTitle,
   errorMessage,
   reference,
+  chargedAt,
   onRetry,
   onBackToOrder,
   onHelp,
@@ -76,7 +79,9 @@ export function PaymentScreen({
   useEffect(() => () => cancelDismissHold(), []);
 
   useEffect(() => {
-    if (status !== 'waiting' && status !== 'processing' && status !== 'checking') {
+    // 'checking' is not listed: the probe is capped at 4s, so a 45s timer could
+    // never fire in that state and listing it implied the check might run long.
+    if (status !== 'waiting' && status !== 'processing') {
       setSlowWarning(false);
       return;
     }
@@ -104,9 +109,21 @@ export function PaymentScreen({
           <p className="text-kiosk-xs font-semibold uppercase tracking-[0.2em] text-ink-600">
             Payment reference
           </p>
-          <p className="mt-2 text-kiosk-xl font-extrabold text-ink-900">{reference || 'Not available'}</p>
+          <p className="mt-2 text-kiosk-xl font-extrabold text-ink-900">
+            {reference || 'Not available'}
+          </p>
+          {/*
+            The time matters most in exactly the case the reference is missing:
+            staff reconcile against the terminal's own transaction report, where
+            "$47.50 at 19:42" is findable and "Not available" is not.
+          */}
           <p className="mt-3 text-kiosk-base text-ink-700">
             Amount paid {money(amount, currencySymbol)}
+            {chargedAt &&
+              ` at ${chargedAt.toLocaleTimeString('en-AU', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`}
           </p>
         </div>
 
