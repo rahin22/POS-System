@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { settings as platformSettings } from '../lib/platform';
 
@@ -30,23 +30,36 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     await platformSettings.set('apiUrl', url);
   };
 
-  const fetchApi = async <T,>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+  const { getAccessToken } = auth;
+
+  const fetchApi = useCallback(async <T,>(endpoint: string, options: RequestInit = {}): Promise<T> => {
     const url = `${apiUrl}${endpoint}`;
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options.headers,
+
+    const call = async (token: string | null) => {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      };
+
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      }
+
+      return fetch(url, { ...options, headers });
     };
 
-    // Use Supabase token from AuthContext
-    if (auth.session?.access_token) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${auth.session.access_token}`;
-    }
+    // Resolved per request rather than read from auth.session, which is a snapshot
+    // that goes stale the moment the background refresh timer misses a beat. Nearly
+    // every call in the app comes through here, so one expired token took out the
+    // orders tab, the menu, reprints and the kitchen auto-print queue together.
+    let response = await call(await getAccessToken());
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    // One forced refresh and one replay. The auth middleware rejects a 401 before the
+    // route body runs, so no order can have been written and the retry is safe.
+    if (response.status === 401) {
+      const refreshed = await getAccessToken(true);
+      if (refreshed) response = await call(refreshed);
+    }
 
     const data = await response.json();
 
@@ -55,7 +68,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     }
 
     return data;
-  };
+  }, [apiUrl, getAccessToken]);
 
   return (
     <ApiContext.Provider value={{ apiUrl, setApiUrl, fetchApi }}>
