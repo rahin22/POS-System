@@ -1,6 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifySupabaseToken } from '../lib/supabase';
+import { verifySupabaseToken, type TokenCheck } from '../lib/supabase';
 import { prisma } from '../index';
+
+/**
+ * Turn a refused token into a response, and say so in the log.
+ *
+ * Every rejection used to be a silent 401 "Invalid token", so a device quietly
+ * sitting on an expired session looked identical to a Supabase outage and neither
+ * left a trace to diagnose from.
+ */
+const rejectToken = (req: Request, res: Response, check: TokenCheck) => {
+  const where = `${req.method} ${req.originalUrl}`;
+
+  // Not the caller's fault - do not tell a device its session is bad when the real
+  // problem is that we could not ask.
+  if (check.reason === 'auth_unreachable') {
+    console.error(`[auth] Supabase auth unreachable on ${where}: ${check.detail}`);
+    return res.status(503).json({
+      success: false,
+      error: 'Authentication service unavailable. Please try again.',
+      code: 'auth_unreachable',
+    });
+  }
+
+  console.warn(`[auth] Rejected token on ${where} (${check.reason}): ${check.detail}`);
+
+  return res.status(401).json({
+    success: false,
+    error: check.reason === 'token_expired' ? 'Session expired' : 'Invalid token',
+    code: check.reason,
+  });
+};
 
 export interface AuthRequest extends Request {
   user?: {
@@ -37,15 +67,13 @@ export const authenticate = async (
     }
 
     const token = authHeader.substring(7);
-    
+
     // Verify token with Supabase
-    const supabaseUser = await verifySupabaseToken(token);
-    
+    const check = await verifySupabaseToken(token);
+    const supabaseUser = check.user;
+
     if (!supabaseUser) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid token',
-      });
+      return rejectToken(req, res, check);
     }
 
     // Find user in our database - must already exist (manually created)
@@ -121,13 +149,11 @@ export const customerAuth = async (
     }
 
     const token = authHeader.substring(7);
-    const supabaseUser = await verifySupabaseToken(token);
-    
+    const check = await verifySupabaseToken(token);
+    const supabaseUser = check.user;
+
     if (!supabaseUser) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid token',
-      });
+      return rejectToken(req, res, check);
     }
 
     req.customer = {
@@ -158,8 +184,8 @@ export const optionalAuth = async (
     }
 
     const token = authHeader.substring(7);
-    const supabaseUser = await verifySupabaseToken(token);
-    
+    const { user: supabaseUser } = await verifySupabaseToken(token);
+
     if (supabaseUser) {
       const user = await prisma.user.findFirst({
         where: { email: supabaseUser.email },

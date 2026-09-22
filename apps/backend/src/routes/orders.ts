@@ -397,7 +397,7 @@ router.post('/', async (req: AuthRequest, res) => {
     const tradingDay = shopDayKey();
     const { start: dayStart, end: dayEnd } = shopDayRange(tradingDay);
 
-    const order = await prisma.$transaction(
+    const created = await prisma.$transaction(
       async (tx) => {
         // Released automatically when the transaction ends. Scoped to this trading
         // day, so concurrent creates only ever wait on each other, never on anything
@@ -425,7 +425,12 @@ router.post('/', async (req: AuthRequest, res) => {
         // it mid-service therefore cannot hand out a number already used today.
         const startFloor = Math.max(1, settings?.orderNumberStart ?? 1) - 1;
 
+        // Created with a minimal selection on purpose. Reading the order back with
+        // all its items, products and modifiers is a pure read, and doing it here
+        // meant the advisory lock stayed held for the length of that read too, so
+        // every other device posting an order queued behind it.
         return tx.order.create({
+          select: { id: true },
           data: {
             orderNumber: Math.max(lastOrderToday?.orderNumber || 0, startFloor) + 1,
             type: type.replace('-', '_') as any,
@@ -448,18 +453,36 @@ router.post('/', async (req: AuthRequest, res) => {
               create: orderItems,
             },
           },
-          include: {
-            items: {
-              include: {
-                product: true,
-                modifiers: true,
-              },
-            },
-          },
         });
       },
-      { maxWait: 5000, timeout: 10000 }
+      // Raised from 5s/10s. The write is a nested create, so it costs one round trip
+      // per item and per modifier through the pgbouncer pooler, and the wait for the
+      // advisory lock is spent inside the transaction and counts against this budget
+      // as well. A latency spike on a large order was enough to blow 10s, and the
+      // order was then lost with a 500 - which is what the POS saw as "no receipt".
+      { maxWait: 10000, timeout: 20000 }
     );
+
+    // Outside the transaction, so the lock is already released
+    const order = await prisma.order.findUnique({
+      where: { id: created.id },
+      include: {
+        items: {
+          include: {
+            product: true,
+            modifiers: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      // The transaction committed, so the order exists and must not be reported as a
+      // failure - staff would re-ring it and the day would carry a duplicate. The POS
+      // prints from this body, so the receipt is the thing that is lost here; it can
+      // still be reprinted from the orders tab.
+      console.error(`[orders] Order ${created.id} committed but could not be read back`);
+    }
 
     res.status(201).json({
       success: true,
@@ -467,6 +490,21 @@ router.post('/', async (req: AuthRequest, res) => {
     });
   } catch (error) {
     console.error('Create order error:', error);
+
+    // P2028 (transaction expired) and P1001 (database unreachable) both roll back, so
+    // no order exists and the device is safe to retry. Saying so matters: a bare 500
+    // leaves staff unsure whether the order went through and whether re-ringing it
+    // would double it up.
+    const code = (error as { code?: string })?.code;
+    if (code === 'P2028' || code === 'P1001') {
+      return res.status(503).json({
+        success: false,
+        error: 'Could not reach the database. The order was not created - please try again.',
+        code,
+        retryable: true,
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: 'Failed to create order',
