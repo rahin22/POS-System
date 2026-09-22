@@ -13,6 +13,7 @@ import printRoutes from './routes/print';
 import couponRoutes from './routes/coupons';
 import modifierRoutes from './routes/modifiers';
 import modifierGroupRoutes from './routes/modifier-groups';
+import appUpdateRoutes from './routes/appUpdates';
 import { shopDayKey, shopMidnightUtc, SHOP_TIME_ZONE } from './lib/shopTime';
 
 // Initialize Prisma with connection pool settings
@@ -85,6 +86,8 @@ app.use('/api/print', printRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/modifiers', modifierRoutes);
 app.use('/api/modifier-groups', modifierGroupRoutes);
+// Live updates for the Capacitor apps. Public: the updater has no session.
+app.use('/api/app', appUpdateRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

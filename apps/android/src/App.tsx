@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ApiProvider, useApi } from './context/ApiContext';
 import { useKitchenAutoPrint } from './hooks/useKitchenAutoPrint';
 import { createCompatibilityLayer } from './lib/platform';
+import { notifyAppReady } from './lib/capacitor';
 import logo from './assets/logo.png';
 
 // Create compatibility layer for Electron API
@@ -33,6 +34,16 @@ function AppContent() {
 
   // Prints kitchen dockets for kiosk orders no matter which page is open
   const kitchenPrint = useKitchenAutoPrint();
+
+  // Confirm to the updater that this bundle boots, which stops it being rolled back.
+  // Deliberately gated on isLoading rather than on mount: reaching here means the
+  // session resolved and a real screen rendered, so a bundle that throws on the way
+  // in never gets to vouch for itself.
+  useEffect(() => {
+    if (!isLoading) {
+      notifyAppReady();
+    }
+  }, [isLoading]);
 
   // Load settings
   useEffect(() => {

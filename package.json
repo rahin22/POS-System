@@ -18,7 +18,8 @@
     "build:pos": "npm run build -w @kebab-pos/terminal",
     "db:generate": "npm run db:generate -w @kebab-pos/backend",
     "db:push": "npm run db:push -w @kebab-pos/backend",
-    "db:studio": "npm run db:studio -w @kebab-pos/backend"
+    "db:studio": "npm run db:studio -w @kebab-pos/backend",
+    "release:android": "node scripts/release-android.mjs"
   },
   "keywords": [
     "pos",
@@ -31,5 +32,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "archiver": "^5.3.2"
   }
 }

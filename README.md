@@ -128,6 +128,49 @@ pos-system/
         └── src/
 ```
 
+## Shipping updates to the Android POS
+
+The Sunmi runs a web bundle inside a native shell, and the two travel separately.
+
+**Over the air** - anything under `apps/android/src`. Bump the version in
+`apps/android/package.json`, then:
+
+```bash
+npm run release:android
+```
+
+That builds the bundle, zips it, and uploads it with a manifest to the public
+`app-bundles` Supabase Storage bucket. Tills pick it up on their next launch, via
+`POST /api/app/updates`. Nothing needs to be installed by hand.
+
+**Needs a new APK** - anything under `apps/android/android`: `SunmiPrinterPlugin`,
+`MainActivity`, adding or upgrading a Capacitor plugin, `capacitor.config.ts`,
+permissions, the icon, or a Capacitor version bump.
+
+If a release depends on new native code, publish it with a floor so it is held back
+from devices still on the older APK:
+
+```bash
+npm run release:android -- --min-native 1.0.5
+```
+
+Keep `versionName` in `apps/android/android/app/build.gradle` in step with
+`apps/android/package.json`, since that is the version devices report and what
+`--min-native` is compared against.
+
+### Safety
+
+A bundle that fails to start is reverted automatically. The updater waits for
+`notifyAppReady()` - called from `App.tsx` once the session has resolved and a real
+screen has rendered - and rolls back to the previous bundle if it never arrives. The
+release script refuses to publish a build in which that call is missing.
+
+To roll back by hand, set `"disabled": true` on
+`app-bundles/com.kebabpos.terminal/production.json`, or re-run the release from the
+previous commit. Manifests are cached for 60s.
+
+First-time setup is in `SETUP-APP-BUNDLES-BUCKET.sql`.
+
 ## API Endpoints
 
 ### Authentication
@@ -145,6 +188,9 @@ pos-system/
 - `POST /api/categories` - Create category (admin)
 - `PUT /api/categories/:id` - Update category (admin)
 - `DELETE /api/categories/:id` - Delete category (admin)
+
+### App updates
+- `POST /api/app/updates` - Live-update check for the Capacitor apps (public)
 
 ### Orders
 - `GET /api/orders` - List orders
